@@ -1,0 +1,134 @@
+{
+    "lang": [
+        {
+            "name": "Coffeescript",
+            "identifier": "coffeescript",
+            "extension": "coffee"
+        },
+        {
+            "name": "C",
+            "identifier": "c",
+            "extension": "c"
+        },
+        {
+            "name": "C++",
+            "identifier": "cpp",
+            "extension": "cpp"
+        },
+        {
+            "name": "C#",
+            "identifier": "csharp",
+            "extension": "cs"
+        },
+        {
+            "name": "CSS",
+            "identifier": "css",
+            "extension": "css"
+        },
+        {
+            "name": "Diff",
+            "identifier": "diff",
+            "extension": "diff"
+        },
+        {
+            "name": "F#",
+            "identifier": "fsharp",
+            "extension": "fs"
+        },
+        {
+            "name": "Perl",
+            "identifier": "perl",
+            "extension": "perl"
+        },
+        {
+            "name": "Go",
+            "identifier": "go",
+            "extension": "go"
+        },
+        {
+            "name": "HTML",
+            "identifier": "html",
+            "extension": "go"
+        },
+        {
+            "name": "Java",
+            "identifier": "java",
+            "extension": "java"
+        },
+        {
+            "name": "JavaScript",
+            "identifier": "javascript",
+            "extension": "js"
+        },
+        {
+            "name": "JSON",
+            "identifier": "json",
+            "extension": "json"
+        },
+        {
+            "name": "Lua",
+            "identifier": "lua",
+            "extension": "lua"
+        },
+        {
+            "name": "Markdown",
+            "identifier": "markdown",
+            "extension": "md"
+        },
+        {
+            "name": "Objective-C",
+            "identifier": "objective-c",
+            "extension": "m"
+        },
+        {
+            "name": "Perl",
+            "identifier": "perl",
+            "extension": "perl"
+        },
+        {
+            "name": "PHP",
+            "identifier": "php",
+            "extension": "php"
+        },
+        {
+            "name": "Python",
+            "identifier": "python",
+            "extension": "py"
+        },
+        {
+            "name": "R",
+            "identifier": "r",
+            "extension": "r"
+        },
+        {
+            "name": "Ruby",
+            "identifier": "ruby",
+            "extension": "rb"
+        },
+        {
+            "name": "Rust",
+            "identifier": "rust",
+            "extension": "rs"
+        },
+        {
+            "name": "SCSS",
+            "identifier": "scss",
+            "extension": "scss"
+        },
+        {
+            "name": "SASS",
+            "identifier": "sass",
+            "extension": "sass"
+        },
+        {
+            "name": "Swift",
+            "identifier": "swift",
+            "extension": "swift"
+        },
+        {
+            "name": "TypeScript",
+            "identifier": "typescript",
+            "extension": "ts"
+        }
+    ]
+}
