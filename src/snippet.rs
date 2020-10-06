@@ -40,8 +40,8 @@ enum SearchStep {
     None,
 }
 
-const START_TAG: &str = "[[Dynamic Snippet Start]]";
-const END_TAG: &str = "[[Dynamic Snippet End]]";
+const START_TAG: &str = "#PORT#";
+const END_TAG: &str = "#PORT_END#";
 
 const NAME_RE: &str = "name: \"((?:[^\"]|\\.)*)\"";
 const PREFIX_RE: &str = "prefix: \"((?:[^\"]|\\.)*)\"";
