@@ -40,6 +40,12 @@ enum SearchStep {
     None,
 }
 
+enum TrimError {
+    InvalidName,
+    InvalidPrefix,
+    InvalidDescription,
+}
+
 const START_TAG: &str = "#PORT#";
 const END_TAG: &str = "#PORT_END#";
 
@@ -54,8 +60,37 @@ const GEN_END_TAG: &str = "//////////  End  //////////";
 pub fn make(lang_identifier: String, snippets_dir: String, code_filepath: &std::path::PathBuf) {
     let mut code = String::new();
     let mut is_empty: bool = true;
-    for trimmed in trim_code(&code_filepath) {
-        // スニペット用のjsonを生成
+
+    let file = match File::open(&code_filepath) {
+        Ok(f) => f,
+        Err(e) => {
+            println!("{:?}", e);
+            return;
+        }
+    };
+
+    let trimmed_vec = match trim_code(file) {
+        Ok(t) => t,
+        Err(e) => match e {
+            TrimError::InvalidName => {
+                println!("error: invalid name");
+                return;
+            }
+
+            TrimError::InvalidPrefix => {
+                println!("error: invalid prefix");
+                return;
+            }
+
+            TrimError::InvalidDescription => {
+                println!("error: invalid description");
+                return;
+            }
+        },
+    };
+
+    // スニペット用のjsonを生成
+    for trimmed in trimmed_vec {
         let snippet = trimmed.snippet;
         let name = trimmed.name;
         let mut meta = HashMap::new();
@@ -72,8 +107,8 @@ pub fn make(lang_identifier: String, snippets_dir: String, code_filepath: &std::
         }
     }
 
+    // 何らかの理由でコードが空の場合は弾く
     if is_empty {
-        // 何らかの理由でコードが空の場合は弾く
         return;
     }
 
@@ -179,9 +214,7 @@ pub fn make(lang_identifier: String, snippets_dir: String, code_filepath: &std::
     // println!("{:?}", code);
 }
 
-fn trim_code(filepath: &std::path::PathBuf) -> Vec<SnippetMetaData> {
-    let file = File::open(filepath).expect("cannot open the target file.");
-
+fn trim_code(file: File) -> Result<Vec<SnippetMetaData>, TrimError> {
     let mut metas: Vec<SnippetMetaData> = vec![];
 
     let mut current_step = SearchStep::StartTag;
@@ -226,7 +259,7 @@ fn trim_code(filepath: &std::path::PathBuf) -> Vec<SnippetMetaData> {
             SearchStep::Name => {
                 if let Some(result) = regex_search(NAME_RE, &line) {
                     if result.len() != 2 {
-                        panic!("error: invalid name");
+                        return Err(TrimError::InvalidName);
                     }
 
                     meta.name = result.get(1).unwrap().to_string(); // 1の方がキャプチャされた文字列
@@ -236,7 +269,7 @@ fn trim_code(filepath: &std::path::PathBuf) -> Vec<SnippetMetaData> {
             SearchStep::Prefix => {
                 if let Some(result) = regex_search(PREFIX_RE, &line) {
                     if result.len() != 2 {
-                        panic!("error: invalid prefix");
+                        return Err(TrimError::InvalidPrefix);
                     }
 
                     meta.snippet.prefix = result.get(1).unwrap().to_string();
@@ -246,7 +279,7 @@ fn trim_code(filepath: &std::path::PathBuf) -> Vec<SnippetMetaData> {
             SearchStep::Description => {
                 if let Some(result) = regex_search(DESC_RE, &line) {
                     if result.len() != 2 {
-                        panic!("error: invalid description");
+                        return Err(TrimError::InvalidDescription);
                     }
 
                     meta.snippet.description = result.get(1).unwrap().to_string();
@@ -257,7 +290,7 @@ fn trim_code(filepath: &std::path::PathBuf) -> Vec<SnippetMetaData> {
         }
     }
 
-    return metas;
+    return Ok(metas);
 }
 
 fn regex_search(re: &str, text: &String) -> Option<Vec<String>> {
