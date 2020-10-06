@@ -35,7 +35,7 @@ fn receive_event(config: &Config, code_filepath: &std::path::PathBuf) {
 fn main() {
     let mut config_path: std::path::PathBuf;
 
-    config_path = std::env::current_exe().expect("cannot get current_exe"); 
+    config_path = std::env::current_exe().expect("cannot get current_exe");
     config_path.pop();
     config_path.push("config.json");
     println!("Config: {:?}", config_path);
@@ -46,10 +46,13 @@ fn main() {
 
     // TODO: configも監視しておく
     // 監視する
-    match watch::watch_dir(paths, &config, receive_event) {
+    let register_result = watch::watch_dir(paths, |code_filepath| {
+        receive_event(&config, &code_filepath);
+    });
+    match register_result {
         Ok(()) => (),
         Err(_) => {
-            panic!("cannot watch files");
+            panic!("cannot watch files!");
         }
     };
 }

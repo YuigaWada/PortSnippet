@@ -2,8 +2,7 @@ use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
 pub fn watch_dir(
     paths: Vec<String>,
-    config: &super::Config,
-    f: fn(&super::Config, &std::path::PathBuf),
+    f: impl Fn(&std::path::PathBuf),
 ) -> notify::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher = Watcher::new_immediate(move |res| tx.send(res).unwrap())?;
@@ -16,9 +15,9 @@ pub fn watch_dir(
             Ok(event) => {
                 if event.paths.len() > 0 && event.kind.is_modify() {
                     let code_filepath = &event.paths[0];
-                    f(config, code_filepath);
+                    f(code_filepath);
                 }
-            },
+            }
             Err(e) => println!("watch error: {:?}", e),
         }
     }
