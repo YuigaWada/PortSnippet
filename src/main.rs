@@ -33,8 +33,9 @@ fn receive_event(config: &Config, code_filepath: &std::path::PathBuf) {
 }
 
 fn main() {
-    let mut config_path = std::env::current_exe().expect("cannot get current_exe"); // 実行ファイルの置かれてるファイルパス
+    let mut config_path: std::path::PathBuf;
 
+    config_path = std::env::current_exe().expect("cannot get current_exe"); 
     config_path.pop();
     config_path.push("config.json");
     println!("Config: {:?}", config_path);
