@@ -15,13 +15,8 @@ pub struct Config {
     files: Vec<String>,
 }
 
-fn receive_event(config: &Config, event: notify::Event) {
-    if event.paths.len() > 1 || !event.kind.is_modify() {
-        return;
-    }
-
-    let code_filepath = &event.paths[0];
-    if let Some(extension) = file::get_extension(code_filepath) {
+fn receive_event(config: &Config, code_filepath: &std::path::PathBuf) {
+    if let Some(extension) = file::get_extension(&code_filepath) {
         // 拡張子から言語を特定する
         let lang_identifier = lang::get_lang(extension);
         if lang_identifier.is_none() {
@@ -32,7 +27,7 @@ fn receive_event(config: &Config, event: notify::Event) {
         let snippets_dir = String::from(&config.snippets_dir);
         // println!("{:?}", lang_name);
 
-        snippet::make(lang_identifier, snippets_dir, code_filepath);
+        snippet::make(lang_identifier, snippets_dir, &code_filepath);
         return;
     }
 }
