@@ -3,6 +3,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+mod debounce;
 mod file;
 mod lang;
 mod snippet;
@@ -15,17 +16,19 @@ pub struct Config {
     files: Vec<String>,
 }
 
-fn receive_event(config: &Config, code_filepath: &std::path::PathBuf) {
+const DEBOUNCE_INTERVAL: u64 = 6000; // ms
+
+fn make_snippet(config: &Config, code_filepath_string: &String) {
+    let snippets_dir = String::from(&config.snippets_dir);
+    let code_filepath = std::path::PathBuf::from(code_filepath_string);
+
     if let Some(extension) = file::get_extension(&code_filepath) {
         // 拡張子から言語を特定する
         let lang_identifier = lang::get_lang(extension);
         if lang_identifier.is_none() {
             return;
         }
-
         let lang_identifier = lang_identifier.unwrap();
-        let snippets_dir = String::from(&config.snippets_dir);
-        // println!("{:?}", lang_name);
 
         snippet::make(lang_identifier, snippets_dir, &code_filepath);
         return;
@@ -44,10 +47,18 @@ fn main() {
     let config: Config = serde_json::from_str(&contents).expect("cannot perse config.json");
     let paths = [config.dirs.clone(), config.files.clone()].concat();
 
+    let debounce_interval = std::time::Duration::from_millis(DEBOUNCE_INTERVAL);
+    let debouncer = debounce::get_safe_debouncer(debounce_interval);
+
     // TODO: configも監視しておく
     // 監視する
-    let register_result = watch::watch_dir(paths, |code_filepath| {
-        receive_event(&config, &code_filepath);
+    let register_result = watch::watch_dir(paths, |code_filepath| { 
+        let locked = debouncer.lock();
+        if let Ok(_) = locked {
+            locked.unwrap().debounce(|| { // debounceに注意
+                make_snippet(&config, &code_filepath); 
+            });
+        }
     });
     match register_result {
         Ok(()) => (),
