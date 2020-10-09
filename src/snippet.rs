@@ -58,6 +58,41 @@ const ALERT_MESSAGE: &str = "///// DO NOT remove this code ! /////";
 const GEN_END_TAG: &str = "//////////  End  //////////";
 
 pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::path::PathBuf) {
+    let code = gen_snippet_json(code_filepath);
+    if (code.is_none()) {
+        return;
+    }
+
+    let code = code.unwrap();
+    let snippet_filename = format!("{}.json", lang_identifier);
+    let mut snippet_filepath = std::path::PathBuf::from(snippets_dir);
+
+    snippet_filepath.push(snippet_filename);
+    println!("{:?}", snippet_filepath);
+
+    let file = match File::open(&snippet_filepath) {
+        Ok(f) => f,
+        Err(ref error) if error.kind() == std::io::ErrorKind::NotFound => {
+            match File::create(&snippet_filepath) {
+                Ok(f) => f,
+                Err(_) => {
+                    panic!("cannot create snippet file!");
+                }
+            }
+        }
+        Err(_) => {
+            panic!("cannot open snippet file!");
+        }
+    };
+
+    // タグを探索し、過去に配置したコードを書き換える
+    if let Some(allcode) = gen_allcode(file, code) {
+        super::file::write_file(&snippet_filepath, allcode);
+    }
+}
+
+// スニペット用のjsonの断片を作成
+fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<String> {
     let mut code = String::new();
     let mut is_empty: bool = true;
 
@@ -65,7 +100,7 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
         Ok(f) => f,
         Err(e) => {
             println!("{:?}", e);
-            return;
+            return None;
         }
     };
 
@@ -74,17 +109,17 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
         Err(e) => match e {
             TrimError::InvalidName => {
                 println!("error: invalid name");
-                return;
+                return None;
             }
 
             TrimError::InvalidPrefix => {
                 println!("error: invalid prefix");
-                return;
+                return None;
             }
 
             TrimError::InvalidDescription => {
                 println!("error: invalid description");
-                return;
+                return None;
             }
         },
     };
@@ -109,32 +144,14 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
 
     // 何らかの理由でコードが空の場合は弾く
     if is_empty {
-        return;
+        return None;
     }
 
-    let snippet_filename = format!("{}.json", lang_identifier);
-    let mut snippet_filepath = std::path::PathBuf::from(snippets_dir);
-    snippet_filepath.push(snippet_filename);
+    return Some(code);
+}
 
-    println!("{:?}", snippet_filepath);
-
-    let file = match File::open(&snippet_filepath) {
-        Ok(f) => f,
-        Err(ref error) if error.kind() == std::io::ErrorKind::NotFound => {
-            match File::create(&snippet_filepath) {
-                Ok(f) => f,
-                Err(_) => {
-                    panic!("cannot create snippet file!");
-                }
-            }
-        }
-        Err(_) => {
-            panic!("cannot open snippet file!");
-        }
-    };
-
-    // タグを探索し、過去にDynamiSnippetが配置したコードを書き換える
-
+// スニペットの全文を作成
+fn gen_allcode(file: File, code: String) -> Option<String> {
     let mut current_step = SearchStep::StartTag;
     let mut allcode = String::new();
     let mut found_tag: bool = false;
@@ -165,7 +182,7 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
     }
 
     if found_tag {
-        super::file::write_file(&snippet_filepath, allcode);
+        return Some(allcode);
     } else {
         // タグが存在しなかった場合
         let mut bracket_index: usize = 0;
@@ -207,13 +224,14 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
             }
 
             println!("{}", allcode);
-            super::file::write_file(&snippet_filepath, allcode);
+            return Some(allcode);
         }
     }
 
-    // println!("{:?}", code);
+    return None;
 }
 
+// 対象のコードから、スニペット部分を取り出す
 fn trim_code(file: File) -> Result<Vec<SnippetMetaData>, TrimError> {
     let mut metas: Vec<SnippetMetaData> = vec![];
 
