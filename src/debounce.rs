@@ -20,11 +20,11 @@ impl Debouncer {
         };
     }
 
-    pub fn debounce(&mut self, f: impl Fn()) {
+    pub fn debounce(&mut self, f: impl Fn()) -> bool {
         if self.last_run.is_none() {
             self.last_run = Some(Instant::now());
             f();
-            return;
+            return true;
         }
         let then = self.last_run.unwrap();
         let now = Instant::now();
@@ -32,8 +32,8 @@ impl Debouncer {
         if now.duration_since(then) > self.interval {
             self.last_run = Some(Instant::now());
             f();
-            return;
+            return true;
         }
-        return;
+        return false;
     }
 }

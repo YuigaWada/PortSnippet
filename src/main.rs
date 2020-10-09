@@ -9,6 +9,8 @@ mod lang;
 mod snippet;
 mod watch;
 
+use std::thread;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     snippets_dir: String,
@@ -18,8 +20,7 @@ pub struct Config {
 
 const DEBOUNCE_INTERVAL: u64 = 6000; // ms
 
-fn make_snippet(config: &Config, code_filepath_string: &String) {
-    let snippets_dir = String::from(&config.snippets_dir);
+fn make_snippet(snippets_dir: &str, code_filepath_string: &String) {
     let code_filepath = std::path::PathBuf::from(code_filepath_string);
 
     if let Some(extension) = file::get_extension(&code_filepath) {
@@ -49,15 +50,28 @@ fn main() {
 
     let debounce_interval = std::time::Duration::from_millis(DEBOUNCE_INTERVAL);
     let debouncer = debounce::get_safe_debouncer(debounce_interval);
+    let snippets_dir = config.snippets_dir.clone();
 
     // TODO: configも監視しておく
     // 監視する
-    let register_result = watch::watch_dir(paths, |code_filepath| { 
+    let register_result = watch::watch_dir(paths, |code_filepath| {
+        // TODO: ファイルごとにdebounceする
         let locked = debouncer.lock();
         if let Ok(_) = locked {
-            locked.unwrap().debounce(|| { // debounceに注意
-                make_snippet(&config, &code_filepath); 
+            // debounceに注意
+            let run = locked.unwrap().debounce(|| {
+                make_snippet(snippets_dir.clone().as_str(), &code_filepath);
             });
+
+            // これが最後のmake_snippetだった場合、debounce_interval間に起こる編集イベントに対応できない
+            // → 常にdebounce_interval後にファイルの編集を確認しに行く
+            if run { 
+                let snippets_dir_string = snippets_dir.clone();
+                thread::spawn(move || {
+                    thread::sleep(debounce_interval);
+                    make_snippet(snippets_dir_string.as_str(), &code_filepath);
+                });
+            }
         }
     });
     match register_result {
