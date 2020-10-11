@@ -223,7 +223,7 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
     code.push_str(format!("{}\n{}\n", GEN_START_TAG, ALERT_MESSAGE).as_str());
 
     // スニペット用のjsonを生成
-    for (i,(name,trimmed)) in trimmed_map.iter().enumerate() {
+    for (name,trimmed) in trimmed_map.iter() {
         let name = name.clone();
         let snippet = trimmed.clone();
         let mut meta = HashMap::new();
@@ -231,10 +231,8 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
 
         if let Ok(json) = serde_json::to_string(&meta) {
             if let Some(json) = json.get(1..json.len() - 1) {
-                if i > 0 {
-                    code.push(','); // 2つ目以降は、行頭にコンマを打つように
-                }
                 code.push_str(&json);
+                code.push(','); // 常にコンマ打ってOK
                 is_empty = false;
             }
         }
