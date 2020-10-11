@@ -219,6 +219,8 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
         },
     };
 
+    // タグ処理
+    code.push_str(format!("{}\n{}\n", GEN_START_TAG, ALERT_MESSAGE).as_str());
 
     // スニペット用のjsonを生成
     for (name,trimmed) in trimmed_map.iter() {
@@ -229,14 +231,15 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
 
         if let Ok(json) = serde_json::to_string(&meta) {
             if let Some(json) = json.get(1..json.len() - 1) {
-                code.push_str(format!("{}\n{}\n", GEN_START_TAG, ALERT_MESSAGE).as_str());
                 code.push_str(&json);
-                code.push('\n');
-                code.push_str(format!("{}\n", GEN_END_TAG).as_str());
                 is_empty = false;
             }
         }
     }
+
+    // タグ処理
+    code.push('\n');
+    code.push_str(format!("{}\n", GEN_END_TAG).as_str());
 
     // 何らかの理由でコードが空の場合は空で返す
     if is_empty {
