@@ -18,7 +18,7 @@ pub struct Config {
     files: Vec<String>,
 }
 
-const DEBOUNCE_INTERVAL: u64 = 6000; // ms
+const DEBOUNCE_INTERVAL: u64 = 10_000; // ms
 
 fn make_snippet(snippets_dir: &str, code_filepath_string: &String) {
     let code_filepath = std::path::PathBuf::from(code_filepath_string);
