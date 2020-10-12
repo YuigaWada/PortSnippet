@@ -79,7 +79,8 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
     let mut deleted_name_list: HashSet<String> = HashSet::new();
 
     // 現存してるスニペット情報を取得する + コードの削除をチェック
-    let mut all_name_list = get_snippet_namelist(lang_identifier.as_str(),snippets_dir);
+    let list_filepath = get_namelist_filepath(lang_identifier.as_str(),snippets_dir);
+    let mut all_name_list = get_snippet_namelist(&list_filepath);
     let name_list = filter_namelist(&all_name_list, &code_filepath_string); 
 
     // 現在編集しているファイルに関してリストを持ってくる
@@ -119,15 +120,23 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
         super::file::write_file(&snippet_filepath, allcode);
         
         // TODO: snippets_dir/.port_snippet/hogehoge.json を書き換える
-        let list_filepath = get_namelist_filepath(lang_identifier.as_str(),snippets_dir);
 
         if let Some(name_list) = name_list { // すでにnamelistが存在していた場合
             let name_list = name_list.clone(); // all_name_listの参照を指しているので、contains判定のため一度cloneする
+
+            // 新しいスニペット
             for (name,_) in snippet.meta.iter() {
-                if deleted_name_list.contains(name) { continue; }  // 削除されたスニペット
-                if !name_list.contains(name) { // 新しいスニペット
+                if !name_list.contains(name) { 
                     let name_set = all_name_list.get_mut(&code_filepath_string);
                     name_set.unwrap().push(name.clone());
+                }
+            }
+
+            // 削除されたスニペット
+            for name in name_list.iter() {
+                if deleted_name_list.contains(name) {
+                    let name_set = all_name_list.get_mut(&code_filepath_string);
+                    name_set.unwrap().retain(|x| x.as_str() != name.as_str()); // 削除
                 }
             }
         }
@@ -163,16 +172,7 @@ fn get_namelist_filepath(lang_identifier: &str, snippets_dir: &str)-> std::path:
 }
 
 
-fn get_snippet_namelist(lang_identifier: &str, snippets_dir: &str)-> KeyList {
-    let list_filepath = get_namelist_filepath(lang_identifier,snippets_dir);
-
-    match File::create(&list_filepath) { // ファイルを作成
-        Ok(f) => f,
-        Err(_) => {
-            panic!("cannot create meta file!");
-        }
-    };
-
+fn get_snippet_namelist(list_filepath: &std::path::PathBuf)-> KeyList {
     if let Ok(name_list_vec) = serde_json::from_str::<KeyList>(super::file::read_file(&list_filepath).as_str()) {
         return name_list_vec;
     }
@@ -223,13 +223,6 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
         },
     };
 
-    // タグ処理
-    let start_tag = format_tag(GEN_START_TAG);
-    let alert_message = format_tag(ALERT_MESSAGE);
-    let end_tag = format_tag(GEN_END_TAG);
-
-    code.push_str(format!("{}\n{}\n", start_tag, alert_message).as_str());
-
     // スニペット用のjsonを生成
     for (name,trimmed) in trimmed_map.iter() {
         let name = name.clone();
@@ -246,9 +239,6 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
         }
     }
 
-    // タグ処理
-    code.push('\n');
-    code.push_str(format!("{}\n", end_tag).as_str());
 
     // 何らかの理由でコードが空の場合は空で返す
     if is_empty {
@@ -267,7 +257,7 @@ fn gen_allcode(file: File, deleted_name_list: &HashSet<String>, bandled: &Bandle
     let mut allcode = String::new();
     let mut found_tag: bool = false;
 
-    let mut already_ported_code = String::new();
+    let mut already_ported_code = String::from("{");
     for line in BufReader::new(file).lines() {
         let mut line = line.unwrap();
         line.push('\n');
@@ -286,9 +276,14 @@ fn gen_allcode(file: File, deleted_name_list: &HashSet<String>, bandled: &Bandle
             SearchStep::EndTag => {
                 if line.contains(GEN_END_TAG) { // タグが存在する場合
                     current_step = SearchStep::None;
+                    already_ported_code.pop();
+                    already_ported_code.pop();
+                    already_ported_code.push_str("}");
+                    
+                    let mut success = false;
                     if let Ok(already_ported) = serde_json::from_str::<SnippetMetaData>(&already_ported_code) {
-
                         let mut new_snippets = SnippetMetaData::new();
+                        println!("delete!: {:?}",deleted_name_list);
                         for (name, existing_snippet) in already_ported.iter() {
                             if deleted_name_list.contains(name) { // 削除対象は弾く
                                 continue;
@@ -301,13 +296,22 @@ fn gen_allcode(file: File, deleted_name_list: &HashSet<String>, bandled: &Bandle
                                 new_snippets.insert(name.clone(),existing_snippet.clone());
                             }
                         }
-
                         if let Ok(code) = serde_json::to_string(&new_snippets) {
-                            allcode.push_str(&code); // stringに直して書き込む
+                            let mut code = code.chars().skip(1).take(code.len()-2).collect::<String>();
+                            code.push(',');
+                            let formated_code = add_tag(&code);
+                            allcode.push_str(&formated_code); // stringに直して書き込む
+                            success = true;
+                        }
+                        else {
+                            success = false;
                         }
                     }
-                    else {
-                        allcode.push_str(&bandled.code); // パースできなかったら、そのまま書き込む
+
+                    if !success {
+                        println!("failed to perse.");
+                        let formated_code = add_tag(&bandled.code);
+                        allcode.push_str(&formated_code); // パースできなかったら、そのまま書き込む
                     }
                 }
                 else { // タグが存在しない場合
@@ -350,12 +354,13 @@ fn gen_allcode(file: File, deleted_name_list: &HashSet<String>, bandled: &Bandle
         ) {
             // first: [0,i), second: [i,len)
             let mut allcode = String::from(first.clone());
+            let formated_code = add_tag(&bandled.code);
 
             if !found_bracket {
                 allcode.push_str("{");
             }
             allcode.push_str("\n");
-            allcode.push_str(&bandled.code);
+            allcode.push_str(&formated_code);
             allcode.push_str(&second);
 
             if !found_bracket {

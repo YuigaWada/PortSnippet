@@ -16,14 +16,13 @@ pub fn read_file(path: &std::path::PathBuf) -> String {
 }
 
 pub fn write_file(path: &std::path::PathBuf, text: String) {
-    let file = match std::fs::OpenOptions::new().write(true).open(path) {
+    let file = match std::fs::OpenOptions::new().create(true).truncate(true).write(true).open(path) {
         Ok(f) => f,
         Err(_) => {
             panic!(format!("file not found. Check {}", path.to_str().unwrap()));
         }
     };
 
-    println!("{:?}", file);
     write!(&file, "{}", text);
 }
 
