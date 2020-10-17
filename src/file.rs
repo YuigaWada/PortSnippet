@@ -1,5 +1,32 @@
 use std::fs::File;
 use std::io::prelude::*;
+use std::io::BufReader;
+
+pub trait Reader {
+    fn lines(&self) -> Vec<String>;
+}
+
+pub struct FileReader {
+    file: File,
+}
+
+impl FileReader {
+    pub fn new(file: File) -> FileReader {
+        return FileReader { file: file };
+    }
+}
+
+impl Reader for FileReader {
+    fn lines(&self) -> Vec<String> {
+        let mut result = vec![];
+        for line in BufReader::new(&self.file).lines() {
+            let line = line.unwrap();
+            result.push(line);
+        }
+
+        return result;
+    }
+}
 
 pub fn open_file(path: &std::path::PathBuf, create: bool, should_panic: bool) -> Option<File> {
     let file = match std::fs::OpenOptions::new()

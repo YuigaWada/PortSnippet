@@ -1,10 +1,9 @@
 extern crate regex;
 use regex::Regex;
 
+use super::file::{open_file, FileReader, Reader};
 use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fs::File;
-use std::io::{BufRead, BufReader, Read};
 
 ///// Type
 
@@ -150,8 +149,9 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
     println!("{:?}", snippet_filepath);
 
     // タグを探索し、過去に配置したコードを書き換える
-    if let Some(snippet_file) = super::file::open_file(&snippet_filepath, true, false) {
-        if let Some(alljson) = gen_alljson(snippet_file, &deleted_name_list, &snippet) {
+    if let Some(snippet_file) = open_file(&snippet_filepath, true, false) {
+        let reader = FileReader::new(snippet_file);
+        if let Some(alljson) = gen_alljson(reader, &deleted_name_list, &snippet) {
             super::file::write_file(&snippet_filepath, alljson);
             // snippets_dir/.port_snippet/hogehoge.json を書き換える
 
@@ -216,15 +216,14 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
     let mut code = String::new();
     let mut is_empty: bool = true;
 
-    let file = match File::open(&code_filepath) {
-        Ok(f) => f,
-        Err(e) => {
-            println!("{:?}", e);
-            return None;
-        }
-    };
+    let file = open_file(&code_filepath, false, false);
+    if file.is_none() {
+        return None;
+    }
 
-    let trimmed_map = match trim_code(file) {
+    let reader = FileReader::new(file.unwrap());
+
+    let trimmed_map = match trim_code(reader) {
         Ok(t) => t,
         Err(e) => match e {
             TrimError::InvalidName => {
@@ -280,7 +279,7 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
 
 // スニペットの全文を作成
 fn gen_alljson(
-    file: impl Read,
+    reader: impl Reader,
     deleted_name_list: &Option<HashSet<String>>,
     bandled: &BandledSnippet,
 ) -> Option<String> {
@@ -289,8 +288,8 @@ fn gen_alljson(
     let mut found_tag: bool = false;
 
     let mut already_ported_json = String::from("{");
-    for line in BufReader::new(file).lines() {
-        let mut line = line.unwrap();
+    for line in reader.lines() {
+        let mut line = line;
         line.push('\n');
 
         // タグが存在してるなら、jsonを解析する
@@ -436,15 +435,15 @@ fn gen_alljson(
 }
 
 // 対象のコードから、スニペット部分を取り出す
-fn trim_code(file: impl Read) -> Result<SnippetMetaData, TrimError> {
+fn trim_code(reader: impl Reader) -> Result<SnippetMetaData, TrimError> {
     let mut current_step = SearchStep::StartTag;
     let mut meta = SnippetMetaData::new();
     let mut code = String::new();
     let mut target = Snippet::new();
     let mut target_name = String::new();
 
-    for line in BufReader::new(file).lines() {
-        let mut line = line.unwrap();
+    for line in reader.lines() {
+        let mut line = line;
         line.push_str("\n");
 
         // メタデータを探索
