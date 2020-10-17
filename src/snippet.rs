@@ -41,6 +41,7 @@ enum SearchStep {
     None,
 }
 
+#[derive(Debug, PartialEq)]
 enum TrimError {
     InvalidName,
     InvalidPrefix,
@@ -534,4 +535,108 @@ fn regex_search(re: &str, text: &String) -> Option<Vec<String>> {
     }
 
     return None;
+}
+
+///// Unit Test
+
+struct MockReader {
+    text: String,
+}
+
+impl MockReader {
+    fn new(text: String) -> MockReader {
+        return MockReader { text: text };
+    }
+}
+
+impl Reader for MockReader {
+    fn lines(&self) -> Vec<String> {
+        return self.text.split('\n').map(|x| String::from(x)).collect();
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn regexSearch_randomSpacing_valid() {
+    let line = String::from("//   name:         \"just_a_mock\"    ");
+    let result = regex_search(NAME_RE, &line);
+
+    assert_ne!(result, None);
+    let result = result.unwrap();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[1], String::from("just_a_mock"));
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn trimCode_oneCode_valid() {
+    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+    let reader = MockReader::new(text);
+
+    if let Ok(result) = trim_code(reader) {
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.contains_key("just_a_mock"), true);
+        let snippet = &result["just_a_mock"];
+
+        assert_eq!(snippet.prefix, "test_prefix");
+        assert_eq!(snippet.description, "test_desc");
+    } else {
+        panic!("failed to trim codes");
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn trimCode_withoutName_invalid() {
+    let text = String::from("//#PORT#\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+    let reader = MockReader::new(text);
+    let result = trim_code(reader);
+    match result {
+        Ok(_) => panic!("failed"),
+        Err(e) => {
+            assert_eq!(e, TrimError::InvalidMeta);
+        }
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn trimCode_withoutNameAndPrefix_invalid() {
+    let text = String::from("//#PORT#\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+    let reader = MockReader::new(text);
+    let result = trim_code(reader);
+    match result {
+        Ok(_) => panic!("failed"),
+        Err(e) => {
+            assert_eq!(e, TrimError::InvalidMeta);
+        }
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn trimCode_withoutPrefix_invalid() {
+    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+    let reader = MockReader::new(text);
+    let result = trim_code(reader);
+    match result {
+        Ok(_) => panic!("failed"),
+        Err(e) => {
+            assert_eq!(e, TrimError::InvalidMeta);
+        }
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn trimCode_WithoutEndTag_invalid() {
+    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n");
+    let reader = MockReader::new(text);
+    let result = trim_code(reader);
+    match result {
+        Ok(_) => panic!("failed"),
+        Err(e) => {
+            assert_eq!(e, TrimError::InvalidMeta);
+        }
+    }
 }
