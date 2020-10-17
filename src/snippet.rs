@@ -18,9 +18,9 @@ struct Snippet {
 impl Snippet {
     fn new() -> Self {
         return Snippet {
-            prefix: String::from(""),
-            body: String::from(""),
-            description: String::from(""),
+            prefix: String::new(),
+            body: String::new(),
+            description: String::new(),
         };
     }
 }
@@ -34,11 +34,10 @@ type SnippetNames = Vec<String>;
 type KeyList = HashMap<String, SnippetNames>; // path, names
 type SnippetMetaData = HashMap<String, Snippet>; // name, Snippet
 
+#[derive(PartialEq)]
 enum SearchStep {
     StartTag,
-    Name,
-    Prefix,
-    Description,
+    Meta,
     EndTag,
     None,
 }
@@ -47,6 +46,7 @@ enum TrimError {
     InvalidName,
     InvalidPrefix,
     InvalidDescription,
+    InvalidMeta,
 }
 
 ///// Tag
@@ -241,6 +241,10 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
                 println!("error: invalid description");
                 return None;
             }
+            TrimError::InvalidMeta => {
+                println!("error: invalid form");
+                return None;
+            }
         },
     };
 
@@ -284,7 +288,7 @@ fn gen_alljson(
     let mut allcode = String::new();
     let mut found_tag: bool = false;
 
-    let mut already_ported_code = String::from("{");
+    let mut already_ported_json = String::from("{");
     for line in BufReader::new(file).lines() {
         let mut line = line.unwrap();
         line.push('\n');
@@ -306,7 +310,7 @@ fn gen_alljson(
                     current_step = SearchStep::None;
                     let mut found_bracket = false;
                     let mut bracket_index = 0;
-                    for c in already_ported_code.as_str().chars().rev() {
+                    for c in already_ported_json.as_str().chars().rev() {
                         match c {
                             '}' => {
                                 found_bracket = true;
@@ -323,14 +327,14 @@ fn gen_alljson(
                     }
 
                     for _ in 0..bracket_index {
-                        already_ported_code.pop();
+                        already_ported_json.pop();
                     }
 
-                    already_ported_code.push_str("}"); // serde_jsonを通すために{}で囲う
+                    already_ported_json.push_str("}"); // serde_jsonを通すために{}で囲う
 
                     let mut success = false;
                     if let Ok(already_ported) =
-                        serde_json::from_str::<SnippetMetaData>(&already_ported_code)
+                        serde_json::from_str::<SnippetMetaData>(&already_ported_json)
                     {
                         let mut new_snippets = SnippetMetaData::new();
                         // println!("delete!: {:?}", deleted_name_list);
@@ -341,15 +345,14 @@ fn gen_alljson(
                                     continue;
                                 }
                             }
-
-                            if bandled.meta.contains_key(name) {
-                                // 書き換える対象は書き換えて、
-                                new_snippets.insert(name.clone(), bandled.meta[name].clone());
-                            } else {
-                                // 書き換えない対象はそのままにしておく
-                                new_snippets.insert(name.clone(), existing_snippet.clone());
-                            }
+                            // 詰め替える
+                            new_snippets.insert(name.clone(), existing_snippet.clone());
                         }
+
+                        for (name, value) in bandled.meta.iter() {
+                            new_snippets.insert(name.clone(), value.clone());
+                        }
+
                         if let Ok(code) = serde_json::to_string(&new_snippets) {
                             let mut code = code
                                 .chars()
@@ -372,7 +375,7 @@ fn gen_alljson(
                     }
                 } else {
                     // タグが存在しない場合
-                    already_ported_code.push_str(&line);
+                    already_ported_json.push_str(&line);
                 }
             }
             _ => {
@@ -444,6 +447,49 @@ fn trim_code(file: impl Read) -> Result<SnippetMetaData, TrimError> {
         let mut line = line.unwrap();
         line.push_str("\n");
 
+        // メタデータを探索
+        match &current_step {
+            SearchStep::StartTag => {
+                if line.contains(START_TAG) {
+                    current_step = SearchStep::Meta;
+                }
+            }
+            SearchStep::Meta => {
+                if let Some(result) = regex_search(DESC_RE, &line) {
+                    // description
+                    if result.len() != 2 {
+                        return Err(TrimError::InvalidDescription);
+                    }
+
+                    target.description = result.get(1).unwrap().to_string(); // 1の方がキャプチャされた文字列
+                } else {
+                    // すでにnameとprefixが見つかってたなら、EndTagを探すように
+                    if !target_name.is_empty() && !target.prefix.is_empty() {
+                        current_step = SearchStep::EndTag;
+                    }
+                }
+
+                if let Some(result) = regex_search(NAME_RE, &line) {
+                    // name
+                    if result.len() != 2 {
+                        return Err(TrimError::InvalidName);
+                    }
+
+                    target_name = result.get(1).unwrap().to_string();
+                }
+
+                if let Some(result) = regex_search(PREFIX_RE, &line) {
+                    // prefix
+                    if result.len() != 2 {
+                        return Err(TrimError::InvalidPrefix);
+                    }
+
+                    target.prefix = result.get(1).unwrap().to_string();
+                }
+            }
+            _ => {}
+        }
+
         // コードを記録
         match &current_step {
             SearchStep::StartTag => {}
@@ -463,48 +509,14 @@ fn trim_code(file: impl Read) -> Result<SnippetMetaData, TrimError> {
             }
             _ => {}
         };
-
-        // メタデータを探索
-        match &current_step {
-            SearchStep::StartTag => {
-                if line.contains(START_TAG) {
-                    current_step = SearchStep::Name;
-                }
-            }
-            SearchStep::Name => {
-                if let Some(result) = regex_search(NAME_RE, &line) {
-                    if result.len() != 2 {
-                        return Err(TrimError::InvalidName);
-                    }
-
-                    target_name = result.get(1).unwrap().to_string(); // 1の方がキャプチャされた文字列
-                    current_step = SearchStep::Prefix;
-                }
-            }
-            SearchStep::Prefix => {
-                if let Some(result) = regex_search(PREFIX_RE, &line) {
-                    if result.len() != 2 {
-                        return Err(TrimError::InvalidPrefix);
-                    }
-
-                    target.prefix = result.get(1).unwrap().to_string();
-                    current_step = SearchStep::Description;
-                }
-            }
-            SearchStep::Description => {
-                if let Some(result) = regex_search(DESC_RE, &line) {
-                    if result.len() != 2 {
-                        return Err(TrimError::InvalidDescription);
-                    }
-
-                    target.description = result.get(1).unwrap().to_string();
-                    current_step = SearchStep::EndTag;
-                }
-            }
-            _ => {}
-        }
     }
 
+    if current_step != SearchStep::StartTag {
+        // タグが正しく閉じてない場合はErr返す
+        return Err(TrimError::InvalidMeta);
+    }
+
+    // println!("{:?}",meta);
     return Ok(meta);
 }
 
