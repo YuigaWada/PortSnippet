@@ -286,11 +286,31 @@ fn gen_allcode(file: File, deleted_name_list: &HashSet<String>, bandled: &Bandle
             }
             SearchStep::EndTag => {
                 if line.contains(GEN_END_TAG) { // タグが存在する場合
-                    current_step = SearchStep::None;
-                    already_ported_code.pop();
-                    already_ported_code.pop();
-                    already_ported_code.push_str("}");
-                    
+                    current_step = SearchStep::None;                    
+                    let mut found_bracket = false;
+                    let mut bracket_index = 0;
+                    for c in already_ported_code.as_str().chars().rev() {
+                        match c {
+                            '}' => {
+                                found_bracket = true;
+                                break;
+                            }
+                            _ => {
+                                bracket_index += 1;
+                            }
+                        };
+                    }
+
+                    if (!found_bracket) {
+                        return None;
+                    }
+
+                    for _ in 0..bracket_index {
+                        already_ported_code.pop();
+                    }
+
+                    already_ported_code.push_str("}"); // serde_jsonを通すために{}で囲う
+
                     let mut success = false;
                     if let Ok(already_ported) = serde_json::from_str::<SnippetMetaData>(&already_ported_code) {
                         let mut new_snippets = SnippetMetaData::new();
