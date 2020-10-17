@@ -4,7 +4,9 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fs::File;
-use std::io::{BufRead, BufReader};
+use std::io::{BufRead, BufReader, Read};
+
+///// Type
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct Snippet {
@@ -30,7 +32,6 @@ struct BandledSnippet {
 
 type SnippetNames = Vec<String>;
 type KeyList = HashMap<String, SnippetNames>; // path, names
-
 type SnippetMetaData = HashMap<String, Snippet>; // name, Snippet
 
 enum SearchStep {
@@ -47,6 +48,8 @@ enum TrimError {
     InvalidPrefix,
     InvalidDescription,
 }
+
+///// Tag
 
 const START_TAG: &str = "#PORT#";
 const END_TAG: &str = "#PORT_END#";
@@ -74,99 +77,7 @@ fn add_tag(code: &String) -> String {
     return new_code;
 }
 
-pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::path::PathBuf) {
-    // スニペットを切り出す
-    let snippet = gen_snippet_json(code_filepath);
-    let code_filepath_string = std::path::PathBuf::from(code_filepath)
-        .into_os_string()
-        .into_string()
-        .clone()
-        .unwrap();
-
-    if (snippet.is_none()) {
-        return;
-    }
-
-    let snippet = snippet.unwrap();
-    let mut deleted_name_list: HashSet<String> = HashSet::new();
-
-    // 現存してるスニペット情報を取得する + コードの削除をチェック
-    let list_filepath = get_namelist_filepath(lang_identifier.as_str(), snippets_dir);
-    let mut all_name_list = get_snippet_namelist(&list_filepath);
-    let name_list = filter_namelist(&all_name_list, &code_filepath_string);
-
-    // 現在編集しているファイルに関してリストを持ってくる
-    if let Some(name_list) = name_list {
-        for existing in name_list.iter() {
-            let name = existing.clone();
-            if !snippet.meta.contains_key(&name) {
-                // スニペットが消えてたら、deleted_name_listにぶちこむ
-                deleted_name_list.insert(name);
-            }
-        }
-    }
-
-    let snippet_filename = format!("{}.json", lang_identifier);
-    let mut snippet_filepath = std::path::PathBuf::from(snippets_dir);
-
-    snippet_filepath.push(snippet_filename);
-    println!("{:?}", snippet_filepath);
-
-    let file = match File::open(&snippet_filepath) {
-        Ok(f) => f,
-        Err(ref error) if error.kind() == std::io::ErrorKind::NotFound => {
-            match File::create(&snippet_filepath) {
-                Ok(f) => f,
-                Err(_) => {
-                    panic!("cannot create snippet file!");
-                }
-            }
-        }
-        Err(_) => {
-            panic!("cannot open snippet file!");
-        }
-    };
-
-    // タグを探索し、過去に配置したコードを書き換える
-    if let Some(allcode) = gen_allcode(file, &deleted_name_list, &snippet) {
-        super::file::write_file(&snippet_filepath, allcode);
-        // snippets_dir/.port_snippet/hogehoge.json を書き換える
-
-        if let Some(name_list) = name_list {
-            // すでにnamelistが存在していた場合
-            let name_list = name_list.clone(); // all_name_listの参照を指しているので、contains判定のため一度cloneする
-
-            // 新しいスニペット
-            for (name, _) in snippet.meta.iter() {
-                if !name_list.contains(name) {
-                    let name_set = all_name_list.get_mut(&code_filepath_string);
-                    name_set.unwrap().push(name.clone());
-                }
-            }
-
-            // 削除されたスニペット
-            for name in name_list.iter() {
-                if deleted_name_list.contains(name) {
-                    let name_set = all_name_list.get_mut(&code_filepath_string);
-                    name_set.unwrap().retain(|x| x.as_str() != name.as_str()); // 削除
-                }
-            }
-        } else {
-            // namelistが存在しない場合
-            let mut name_set: SnippetNames = SnippetNames::new();
-            for (name, _) in snippet.meta.iter() {
-                name_set.push(name.clone());
-            }
-
-            all_name_list.insert(code_filepath_string, name_set);
-        }
-
-        // 新しいnamelistを書き込む
-        if let Ok(name_list_string) = serde_json::to_string::<KeyList>(&all_name_list) {
-            super::file::write_file(&list_filepath, name_list_string);
-        }
-    }
-}
+///// namelist
 
 // lang_identifierごとのnamelistのファイルパスを返す
 fn get_namelist_filepath(lang_identifier: &str, snippets_dir: &str) -> std::path::PathBuf {
@@ -205,7 +116,102 @@ fn filter_namelist<'a>(
     return None;
 }
 
-// スニペット用のjsonの断片を作成
+///// Main
+
+pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::path::PathBuf) {
+    // スニペットを切り出す
+    let snippet = gen_snippet_json(code_filepath);
+    let code_filepath_string = std::path::PathBuf::from(code_filepath)
+        .into_os_string()
+        .into_string()
+        .clone()
+        .unwrap();
+
+    if snippet.is_none() {
+        return;
+    }
+
+    let snippet = snippet.unwrap();
+
+    // 現存してるスニペット情報を取得する + コードの削除をチェック
+    let list_filepath = get_namelist_filepath(lang_identifier.as_str(), snippets_dir);
+    let mut all_name_list = get_snippet_namelist(&list_filepath);
+    let name_list = filter_namelist(&all_name_list, &code_filepath_string);
+
+    // 現在編集しているファイルに関してリストを持ってくる
+    let mut deleted_name_list: Option<HashSet<String>> = None;
+    if let Some(name_list) = name_list {
+        deleted_name_list = Some(get_deleted_list(&snippet, &name_list));
+    }
+    let snippet_filename = format!("{}.json", lang_identifier);
+    let mut snippet_filepath = std::path::PathBuf::from(snippets_dir);
+
+    snippet_filepath.push(snippet_filename);
+    println!("{:?}", snippet_filepath);
+
+    // タグを探索し、過去に配置したコードを書き換える
+    if let Some(snippet_file) = super::file::open_file(&snippet_filepath, true, false) {
+        if let Some(alljson) = gen_alljson(snippet_file, &deleted_name_list, &snippet) {
+            super::file::write_file(&snippet_filepath, alljson);
+            // snippets_dir/.port_snippet/hogehoge.json を書き換える
+
+            if let Some(name_list) = name_list {
+                // すでにnamelistが存在していた場合
+                let name_list = name_list.clone(); // all_name_listの参照を指しているので、contains判定のため一度cloneする
+
+                // 新しいスニペット
+                for (name, _) in snippet.meta.iter() {
+                    if !name_list.contains(name) {
+                        let name_set = all_name_list.get_mut(&code_filepath_string);
+                        name_set.unwrap().push(name.clone());
+                    }
+                }
+
+                // 削除されたスニペット
+                if let Some(deleted_name_list) = deleted_name_list {
+                    for name in name_list.iter() {
+                        if deleted_name_list.contains(name) {
+                            // 削除
+                            let name_set = all_name_list.get_mut(&code_filepath_string);
+                            name_set.unwrap().retain(|x| x.as_str() != name.as_str());
+                        }
+                    }
+                }
+            } else {
+                // namelistが存在しない場合
+                let mut name_set: SnippetNames = SnippetNames::new();
+                for (name, _) in snippet.meta.iter() {
+                    name_set.push(name.clone());
+                }
+
+                all_name_list.insert(code_filepath_string, name_set);
+            }
+
+            // 新しいnamelistを書き込む
+            if let Ok(name_list_string) = serde_json::to_string::<KeyList>(&all_name_list) {
+                super::file::write_file(&list_filepath, name_list_string);
+            }
+        }
+    }
+}
+
+// 現存してるスニペット情報を取得する + コードの削除をチェック
+fn get_deleted_list(snippet: &BandledSnippet, name_list: &SnippetNames) -> HashSet<String> {
+    let mut deleted_name_list: HashSet<String> = HashSet::new();
+
+    // 現在編集しているファイルに関してリストを持ってくる
+    for existing in name_list.iter() {
+        let name = existing.clone();
+        if !snippet.meta.contains_key(&name) {
+            // スニペットが消えてたら、deleted_name_listにぶちこむ
+            deleted_name_list.insert(name);
+        }
+    }
+
+    return deleted_name_list;
+}
+
+// 対象ファイルをトリミングして、スニペット用のjsonの断片を作成
 fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet> {
     let mut code = String::new();
     let mut is_empty: bool = true;
@@ -269,9 +275,9 @@ fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet
 }
 
 // スニペットの全文を作成
-fn gen_allcode(
-    file: File,
-    deleted_name_list: &HashSet<String>,
+fn gen_alljson(
+    file: impl Read,
+    deleted_name_list: &Option<HashSet<String>>,
     bandled: &BandledSnippet,
 ) -> Option<String> {
     let mut current_step = SearchStep::StartTag;
@@ -312,7 +318,7 @@ fn gen_allcode(
                         };
                     }
 
-                    if (!found_bracket) {
+                    if !found_bracket {
                         return None;
                     }
 
@@ -327,11 +333,13 @@ fn gen_allcode(
                         serde_json::from_str::<SnippetMetaData>(&already_ported_code)
                     {
                         let mut new_snippets = SnippetMetaData::new();
-                        println!("delete!: {:?}", deleted_name_list);
+                        // println!("delete!: {:?}", deleted_name_list);
                         for (name, existing_snippet) in already_ported.iter() {
-                            if deleted_name_list.contains(name) {
-                                // 削除対象は弾く
-                                continue;
+                            if let Some(deleted_name_list) = deleted_name_list {
+                                if deleted_name_list.contains(name) {
+                                    // 削除対象は弾く
+                                    continue;
+                                }
                             }
 
                             if bandled.meta.contains_key(name) {
@@ -425,7 +433,7 @@ fn gen_allcode(
 }
 
 // 対象のコードから、スニペット部分を取り出す
-fn trim_code(file: File) -> Result<SnippetMetaData, TrimError> {
+fn trim_code(file: impl Read) -> Result<SnippetMetaData, TrimError> {
     let mut current_step = SearchStep::StartTag;
     let mut meta = SnippetMetaData::new();
     let mut code = String::new();
@@ -499,6 +507,8 @@ fn trim_code(file: File) -> Result<SnippetMetaData, TrimError> {
 
     return Ok(meta);
 }
+
+///// Util
 
 fn regex_search(re: &str, text: &String) -> Option<Vec<String>> {
     let re = Regex::new(re).unwrap();
