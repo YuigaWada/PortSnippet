@@ -9,6 +9,8 @@ mod lang;
 mod snippet;
 mod watch;
 
+use file::{open_file, FileReader};
+use snippet::KeyList;
 use std::thread;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -31,7 +33,7 @@ fn make_snippet(snippets_dir: &str, code_filepath_string: &String) {
         }
         let lang_identifier = lang_identifier.unwrap();
 
-        snippet::make(lang_identifier, snippets_dir, &code_filepath);
+        make(lang_identifier, snippets_dir, &code_filepath);
         return;
     }
 }
@@ -65,7 +67,7 @@ fn main() {
 
             // これが最後のmake_snippetだった場合、debounce_interval間に起こる編集イベントに対応できない
             // → 常にdebounce_interval後にファイルの編集を確認しに行く
-            if run { 
+            if run {
                 let snippets_dir_string = snippets_dir.clone();
                 thread::spawn(move || {
                     thread::sleep(debounce_interval);
@@ -80,4 +82,54 @@ fn main() {
             panic!("cannot watch files!");
         }
     };
+}
+
+fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::path::PathBuf) {
+    // スニペットを切り出す
+    let snippet_file = open_file(&code_filepath, false, false);
+    if snippet_file.is_none() {
+        return;
+    }
+
+    let snippet_reader = FileReader::new(snippet_file.unwrap());
+
+    let code_filepath_string = std::path::PathBuf::from(code_filepath)
+        .into_os_string()
+        .into_string()
+        .clone()
+        .unwrap();
+
+    // 現存してるスニペット情報を取得する + コードの削除をチェック
+    let list_filepath = snippet::get_namelist_filepath(lang_identifier.as_str(), snippets_dir);
+    let list_file = open_file(&list_filepath, true, false);
+    if list_file.is_none() {
+        return;
+    }
+
+    let mut list_file_reader = FileReader::new(list_file.unwrap());
+
+    let snippet_json_filename = format!("{}.json", lang_identifier);
+    let mut snippet_json_filepath = std::path::PathBuf::from(snippets_dir);
+
+    snippet_json_filepath.push(snippet_json_filename);
+    println!("{:?}", snippet_json_filepath);
+
+    if let Some(snippet_json_file) = open_file(&snippet_json_filepath, true, false) {
+        let snippet_json_reader = FileReader::new(snippet_json_file);
+        let result = snippet::make(
+            snippet_reader,
+            snippet_json_reader,
+            &mut list_file_reader,
+            code_filepath_string,
+        );
+        if let Some(result) = result {
+            // スニペットのjsonを書き込む
+            file::write_file(&snippet_json_filepath, result.json);
+
+            // 新しいnamelistを書き込む
+            if let Ok(name_list_string) = serde_json::to_string::<KeyList>(&result.name_list) {
+                file::write_file(&list_filepath, name_list_string);
+            }
+        }
+    }
 }

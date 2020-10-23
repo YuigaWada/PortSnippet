@@ -1,7 +1,7 @@
 extern crate regex;
 use regex::Regex;
 
-use super::file::{open_file, FileReader, Reader};
+use super::file::Reader;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
@@ -30,8 +30,13 @@ struct BandledSnippet {
 }
 
 type SnippetNames = Vec<String>;
-type KeyList = HashMap<String, SnippetNames>; // path, names
+pub type KeyList = HashMap<String, SnippetNames>; // path, names
 type SnippetMetaData = HashMap<String, Snippet>; // name, Snippet
+
+pub struct Output {
+    pub json: String,
+    pub name_list: KeyList,
+}
 
 #[derive(PartialEq)]
 enum SearchStep {
@@ -80,7 +85,7 @@ fn add_tag(code: &String) -> String {
 ///// namelist
 
 // lang_identifierごとのnamelistのファイルパスを返す
-fn get_namelist_filepath(lang_identifier: &str, snippets_dir: &str) -> std::path::PathBuf {
+pub fn get_namelist_filepath(lang_identifier: &str, snippets_dir: &str) -> std::path::PathBuf {
     let mut meta_dir = std::path::PathBuf::from(snippets_dir);
     meta_dir.push(".port_snippet");
     match std::fs::create_dir(&meta_dir) {
@@ -94,10 +99,8 @@ fn get_namelist_filepath(lang_identifier: &str, snippets_dir: &str) -> std::path
     return list_filepath;
 }
 
-fn get_snippet_namelist(list_filepath: &std::path::PathBuf) -> KeyList {
-    if let Ok(name_list_vec) =
-        serde_json::from_str::<KeyList>(super::file::read_file(&list_filepath).as_str())
-    {
+fn get_snippet_namelist<T: Reader>(list_file_reader: &mut T) -> KeyList {
+    if let Ok(name_list_vec) = serde_json::from_str::<KeyList>(list_file_reader.all().as_str()) {
         return name_list_vec;
     }
     return KeyList::new();
@@ -114,63 +117,6 @@ fn filter_namelist<'a>(
     }
 
     return None;
-}
-
-///// Main
-
-pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::path::PathBuf) {
-    // スニペットを切り出す
-    let snippet = gen_snippet_json(code_filepath);
-    let code_filepath_string = std::path::PathBuf::from(code_filepath)
-        .into_os_string()
-        .into_string()
-        .clone()
-        .unwrap();
-
-    if snippet.is_none() {
-        return;
-    }
-
-    let snippet = snippet.unwrap();
-
-    // 現存してるスニペット情報を取得する + コードの削除をチェック
-    let list_filepath = get_namelist_filepath(lang_identifier.as_str(), snippets_dir);
-    let mut all_name_list = get_snippet_namelist(&list_filepath);
-    let name_list = filter_namelist(&all_name_list, &code_filepath_string);
-
-    // 現在編集しているファイルに関してリストを持ってくる
-    let mut deleted_name_list: Option<HashSet<String>> = None;
-    if let Some(name_list) = name_list {
-        deleted_name_list = Some(get_deleted_list(&snippet, &name_list));
-    }
-    let snippet_filename = format!("{}.json", lang_identifier);
-    let mut snippet_filepath = std::path::PathBuf::from(snippets_dir);
-
-    snippet_filepath.push(snippet_filename);
-    println!("{:?}", snippet_filepath);
-
-    // タグを探索し、過去に配置したコードを書き換える
-    if let Some(snippet_file) = open_file(&snippet_filepath, true, false) {
-        let reader = FileReader::new(snippet_file);
-        if let Some(alljson) = gen_alljson(reader, &deleted_name_list, &snippet) {
-            // スニペットのjsonを書き込む
-            super::file::write_file(&snippet_filepath, alljson);
-
-            // namelist を書き換える
-            all_name_list = update_name_list(
-                &code_filepath_string,
-                &all_name_list,
-                &name_list,
-                deleted_name_list,
-                &snippet,
-            );
-
-            // 新しいnamelistを書き込む
-            if let Ok(name_list_string) = serde_json::to_string::<KeyList>(&all_name_list) {
-                super::file::write_file(&list_filepath, name_list_string);
-            }
-        }
-    }
 }
 
 // name_listをupdateする
@@ -218,6 +164,56 @@ fn update_name_list(
     return all_name_list;
 }
 
+///// Main
+
+// snippet_json_reader
+// snippet_reader
+// list_file_reader
+
+pub fn make<R: Reader>(
+    snippet_reader: R,
+    snippet_json_reader: R,
+    list_file_reader: &mut R,
+    code_filepath_string: String,
+) -> Option<Output> {
+    // スニペットを切り出す
+    let snippet = gen_snippet_json(snippet_reader);
+    if snippet.is_none() {
+        return None;
+    }
+
+    let snippet = snippet.unwrap();
+
+    // 現存してるスニペット情報を取得する + コードの削除をチェック
+    let mut all_name_list = get_snippet_namelist(list_file_reader);
+    let name_list = filter_namelist(&all_name_list, &code_filepath_string);
+
+    // 現在編集しているファイルに関してリストを持ってくる
+    let mut deleted_name_list: Option<HashSet<String>> = None;
+    if let Some(name_list) = name_list {
+        deleted_name_list = Some(get_deleted_list(&snippet, &name_list));
+    }
+
+    // タグを探索し、過去に配置したコードを書き換える
+    if let Some(alljson) = gen_alljson(snippet_json_reader, &deleted_name_list, &snippet) {
+        // namelist を書き換える
+        all_name_list = update_name_list(
+            &code_filepath_string,
+            &all_name_list,
+            &name_list,
+            deleted_name_list,
+            &snippet,
+        );
+
+        return Some(Output {
+            json: alljson,
+            name_list: all_name_list,
+        });
+    }
+
+    return None;
+}
+
 // 現存してるスニペット情報を取得する + コードの削除をチェック
 fn get_deleted_list(snippet: &BandledSnippet, name_list: &SnippetNames) -> HashSet<String> {
     let mut deleted_name_list: HashSet<String> = HashSet::new();
@@ -235,17 +231,9 @@ fn get_deleted_list(snippet: &BandledSnippet, name_list: &SnippetNames) -> HashS
 }
 
 // 対象ファイルをトリミングして、スニペット用のjsonの断片を作成
-fn gen_snippet_json(code_filepath: &std::path::PathBuf) -> Option<BandledSnippet> {
+fn gen_snippet_json(reader: impl Reader) -> Option<BandledSnippet> {
     let mut code = String::new();
     let mut is_empty: bool = true;
-
-    let file = open_file(&code_filepath, false, false);
-    if file.is_none() {
-        return None;
-    }
-
-    let reader = FileReader::new(file.unwrap());
-
     let trimmed_map = match trim_code(reader) {
         Ok(t) => t,
         Err(e) => match e {
@@ -574,6 +562,9 @@ impl MockReader {
 impl Reader for MockReader {
     fn lines(&self) -> Vec<String> {
         return self.text.split('\n').map(|x| String::from(x)).collect();
+    }
+    fn all(&mut self) -> String {
+        return self.text.clone();
     }
 }
 

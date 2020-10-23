@@ -4,6 +4,7 @@ use std::io::BufReader;
 
 pub trait Reader {
     fn lines(&self) -> Vec<String>;
+    fn all(&mut self) -> String;
 }
 
 pub struct FileReader {
@@ -25,6 +26,14 @@ impl Reader for FileReader {
         }
 
         return result;
+    }
+
+    fn all(&mut self) -> String {
+        let mut contents = String::new();
+        self.file
+            .read_to_string(&mut contents)
+            .expect("something went wrong reading the config file");
+        return contents;
     }
 }
 
