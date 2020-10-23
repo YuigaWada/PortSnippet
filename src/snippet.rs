@@ -153,40 +153,17 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
     if let Some(snippet_file) = open_file(&snippet_filepath, true, false) {
         let reader = FileReader::new(snippet_file);
         if let Some(alljson) = gen_alljson(reader, &deleted_name_list, &snippet) {
+            // スニペットのjsonを書き込む
             super::file::write_file(&snippet_filepath, alljson);
-            // snippets_dir/.port_snippet/hogehoge.json を書き換える
 
-            if let Some(name_list) = name_list {
-                // すでにnamelistが存在していた場合
-                let name_list = name_list.clone(); // all_name_listの参照を指しているので、contains判定のため一度cloneする
-
-                // 新しいスニペット
-                for (name, _) in snippet.meta.iter() {
-                    if !name_list.contains(name) {
-                        let name_set = all_name_list.get_mut(&code_filepath_string);
-                        name_set.unwrap().push(name.clone());
-                    }
-                }
-
-                // 削除されたスニペット
-                if let Some(deleted_name_list) = deleted_name_list {
-                    for name in name_list.iter() {
-                        if deleted_name_list.contains(name) {
-                            // 削除
-                            let name_set = all_name_list.get_mut(&code_filepath_string);
-                            name_set.unwrap().retain(|x| x.as_str() != name.as_str());
-                        }
-                    }
-                }
-            } else {
-                // namelistが存在しない場合
-                let mut name_set: SnippetNames = SnippetNames::new();
-                for (name, _) in snippet.meta.iter() {
-                    name_set.push(name.clone());
-                }
-
-                all_name_list.insert(code_filepath_string, name_set);
-            }
+            // namelist を書き換える
+            all_name_list = update_name_list(
+                &code_filepath_string,
+                &all_name_list,
+                &name_list,
+                deleted_name_list,
+                &snippet,
+            );
 
             // 新しいnamelistを書き込む
             if let Ok(name_list_string) = serde_json::to_string::<KeyList>(&all_name_list) {
@@ -194,6 +171,51 @@ pub fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::pa
             }
         }
     }
+}
+
+// name_listをupdateする
+fn update_name_list(
+    code_filepath_string: &String,
+    all_name_list: &KeyList,
+    name_list: &Option<&SnippetNames>,
+    deleted_name_list: Option<HashSet<String>>,
+    snippet: &BandledSnippet,
+) -> KeyList {
+    let mut all_name_list = all_name_list.clone();
+
+    if let Some(name_list) = name_list {
+        // すでにnamelistが存在していた場合
+        let name_list = name_list.clone(); // all_name_listの参照を指しているので、contains判定のため一度cloneする
+
+        // 新しいスニペット
+        for (name, _) in snippet.meta.iter() {
+            if !name_list.contains(name) {
+                let name_set = all_name_list.get_mut(code_filepath_string);
+                name_set.unwrap().push(name.clone());
+            }
+        }
+
+        // 削除されたスニペット
+        if let Some(deleted_name_list) = deleted_name_list {
+            for name in name_list.iter() {
+                if deleted_name_list.contains(name) {
+                    // 削除
+                    let name_set = all_name_list.get_mut(code_filepath_string);
+                    name_set.unwrap().retain(|x| x.as_str() != name.as_str());
+                }
+            }
+        }
+    } else {
+        // namelistが存在しない場合
+        let mut name_set: SnippetNames = SnippetNames::new();
+        for (name, _) in snippet.meta.iter() {
+            name_set.push(name.clone());
+        }
+
+        all_name_list.insert(code_filepath_string.clone(), name_set);
+    }
+
+    return all_name_list;
 }
 
 // 現存してるスニペット情報を取得する + コードの削除をチェック
