@@ -623,6 +623,50 @@ fn trimCode_someCode_valid() {
 
 #[test]
 #[allow(non_snake_case)]
+fn trimCode_asteriskComment_valid() {
+    let text = String::from("/*#PORT#*/\n/*name:\"just_a_mock\"*/\n/*prefix:\"test_prefix\"*/\n/*description:\"test_desc\"*/\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n/*#PORT_END#*/");
+    let reader = MockReader::new(text);
+
+    if let Ok(result) = trim_code(reader) {
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.contains_key("just_a_mock"), true);
+        let snippet = &result["just_a_mock"];
+
+        assert_eq!(snippet.prefix, "test_prefix");
+        assert_eq!(snippet.description, "test_desc");
+        assert_eq!(
+            snippet.body,
+            "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+        );
+    } else {
+        panic!("failed to trim codes");
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
+fn trimCode_sharpComment_valid() {
+    let text = String::from("##PORT##\n#name:\"just_a_mock\"#\n#prefix:\"test_prefix\"#\n#description:\"test_desc\"#\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n##PORT_END##");
+    let reader = MockReader::new(text);
+
+    if let Ok(result) = trim_code(reader) {
+        assert_eq!(result.len(), 1);
+        assert_eq!(result.contains_key("just_a_mock"), true);
+        let snippet = &result["just_a_mock"];
+
+        assert_eq!(snippet.prefix, "test_prefix");
+        assert_eq!(snippet.description, "test_desc");
+        assert_eq!(
+            snippet.body,
+            "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+        );
+    } else {
+        panic!("failed to trim codes");
+    }
+}
+
+#[test]
+#[allow(non_snake_case)]
 fn trimCode_withoutName_invalid() {
     let text = String::from("//#PORT#\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
     let reader = MockReader::new(text);
