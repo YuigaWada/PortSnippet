@@ -317,6 +317,8 @@ fn gen_alljson(
                     current_step = SearchStep::None;
                     let mut found_bracket = false;
                     let mut bracket_index = 0;
+
+                    // already_ported_jsonの末尾の "}," を削除する
                     for c in already_ported_json.as_str().chars().rev() {
                         match c {
                             '}' => {
