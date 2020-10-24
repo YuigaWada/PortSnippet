@@ -274,12 +274,9 @@ fn gen_snippet_json(reader: impl Reader) -> Option<BandledSnippet> {
         }
     }
 
-    // 何らかの理由でコードが空の場合は空で返す
+    // 何らかの理由でコードが空の場合はNoneを返す
     if is_empty {
-        return Some(BandledSnippet {
-            meta: HashMap::new(),
-            code: String::from(""),
-        });
+        return None;
     }
 
     return Some(BandledSnippet {
