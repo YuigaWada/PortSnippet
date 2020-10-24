@@ -22,22 +22,6 @@ pub struct Config {
 
 const DEBOUNCE_INTERVAL: u64 = 10_000; // ms
 
-fn make_snippet(snippets_dir: &str, code_filepath_string: &String) {
-    let code_filepath = std::path::PathBuf::from(code_filepath_string);
-
-    if let Some(extension) = file::get_extension(&code_filepath) {
-        // 拡張子から言語を特定する
-        let lang_identifier = lang::get_lang(extension);
-        if lang_identifier.is_none() {
-            return;
-        }
-        let lang_identifier = lang_identifier.unwrap();
-
-        make(lang_identifier, snippets_dir, &code_filepath);
-        return;
-    }
-}
-
 fn main() {
     let mut config_path: std::path::PathBuf;
 
@@ -56,9 +40,11 @@ fn main() {
 
     // TODO: configも監視しておく
     // 監視する
-    let register_result = watch::watch_dir(paths, |code_filepath| {
+    let register_result = watch::watch_dir(paths, |code_filepath_string| {
         // TODO: ファイルごとにdebounceする
         let locked = debouncer.lock();
+        let code_filepath = std::path::PathBuf::from(code_filepath_string);
+
         if let Ok(_) = locked {
             // debounceに注意
             let run = locked.unwrap().debounce(|| {
@@ -84,38 +70,48 @@ fn main() {
     };
 }
 
-fn make(lang_identifier: String, snippets_dir: &str, code_filepath: &std::path::PathBuf) {
-    // スニペットを切り出す
+// ファイルの拡張子から言語を特定する
+fn detect_lang(code_filepath: &std::path::PathBuf) -> Option<String> {
+    if let Some(extension) = file::get_extension(&code_filepath) {
+        let lang_identifier = lang::get_lang(extension);
+        return lang_identifier;
+    }
+    return None;
+}
+
+// スニペットを生成
+fn make_snippet(snippets_dir: &str, code_filepath: &std::path::PathBuf) {
+    let lang_identifier = detect_lang(code_filepath);
     let snippet_file = open_file(&code_filepath, false, false);
-    if snippet_file.is_none() {
+    if lang_identifier.is_none() || snippet_file.is_none() {
         return;
     }
 
-    let snippet_reader = FileReader::new(snippet_file.unwrap());
-
+    let lang_identifier = lang_identifier.unwrap();
     let code_filepath_string = std::path::PathBuf::from(code_filepath)
         .into_os_string()
         .into_string()
         .clone()
         .unwrap();
 
-    // 現存してるスニペット情報を取得する + コードの削除をチェック
     let list_filepath = snippet::get_namelist_filepath(lang_identifier.as_str(), snippets_dir);
     let list_file = open_file(&list_filepath, true, false);
     if list_file.is_none() {
         return;
     }
 
-    let mut list_file_reader = FileReader::new(list_file.unwrap());
-
     let snippet_json_filename = format!("{}.json", lang_identifier);
     let mut snippet_json_filepath = std::path::PathBuf::from(snippets_dir);
-
     snippet_json_filepath.push(snippet_json_filename);
     println!("{:?}", snippet_json_filepath);
 
     if let Some(snippet_json_file) = open_file(&snippet_json_filepath, true, false) {
+        // Readerを用意する
+        let snippet_reader = FileReader::new(snippet_file.unwrap());
+        let mut list_file_reader = FileReader::new(list_file.unwrap());
         let snippet_json_reader = FileReader::new(snippet_json_file);
+
+        // スニペット生成
         let result = snippet::make(
             snippet_reader,
             snippet_json_reader,

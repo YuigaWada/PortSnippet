@@ -33,7 +33,6 @@ type SnippetNames = Vec<String>;
 pub type KeyList = HashMap<String, SnippetNames>; // path, names
 type SnippetMetaData = HashMap<String, Snippet>; // name, Snippet
 
-
 #[derive(Debug, PartialEq)]
 pub struct Output {
     pub json: String,
@@ -82,6 +81,53 @@ fn add_tag(code: &String) -> String {
     new_code.push_str(format!("\n{}\n", end_tag).as_str());
 
     return new_code;
+}
+
+//// Main
+
+// ファイルからスニペットを切り出して、スニペットのjsonを作成する
+pub fn make<R: Reader>(
+    snippet_reader: R,
+    snippet_json_reader: R,
+    list_file_reader: &mut R,
+    code_filepath_string: String,
+) -> Option<Output> {
+    // スニペットを切り出す
+    let snippet = gen_snippet_json(snippet_reader);
+    if snippet.is_none() {
+        return None;
+    }
+
+    let snippet = snippet.unwrap();
+
+    // 現存してるスニペット情報を取得する + コードの削除をチェック
+    let mut all_name_list = get_snippet_namelist(list_file_reader);
+    let name_list = filter_namelist(&all_name_list, &code_filepath_string);
+
+    // 現在編集しているファイルに関してリストを持ってくる
+    let mut deleted_name_list: Option<HashSet<String>> = None;
+    if let Some(name_list) = name_list {
+        deleted_name_list = Some(get_deleted_list(&snippet, &name_list));
+    }
+
+    // タグを探索し、過去に配置したコードを書き換える
+    if let Some(alljson) = gen_alljson(snippet_json_reader, &deleted_name_list, &snippet) {
+        // namelist を書き換える
+        all_name_list = update_name_list(
+            &code_filepath_string,
+            &all_name_list,
+            &name_list,
+            deleted_name_list,
+            &snippet,
+        );
+
+        return Some(Output {
+            json: alljson,
+            name_list: all_name_list,
+        });
+    }
+
+    return None;
 }
 
 ///// namelist
@@ -166,55 +212,7 @@ fn update_name_list(
     return all_name_list;
 }
 
-///// Main
-
-// snippet_json_reader
-// snippet_reader
-// list_file_reader
-
-pub fn make<R: Reader>(
-    snippet_reader: R,
-    snippet_json_reader: R,
-    list_file_reader: &mut R,
-    code_filepath_string: String,
-) -> Option<Output> {
-    // スニペットを切り出す
-    let snippet = gen_snippet_json(snippet_reader);
-    if snippet.is_none() {
-        return None;
-    }
-
-    let snippet = snippet.unwrap();
-
-    // 現存してるスニペット情報を取得する + コードの削除をチェック
-    let mut all_name_list = get_snippet_namelist(list_file_reader);
-    let name_list = filter_namelist(&all_name_list, &code_filepath_string);
-
-    // 現在編集しているファイルに関してリストを持ってくる
-    let mut deleted_name_list: Option<HashSet<String>> = None;
-    if let Some(name_list) = name_list {
-        deleted_name_list = Some(get_deleted_list(&snippet, &name_list));
-    }
-
-    // タグを探索し、過去に配置したコードを書き換える
-    if let Some(alljson) = gen_alljson(snippet_json_reader, &deleted_name_list, &snippet) {
-        // namelist を書き換える
-        all_name_list = update_name_list(
-            &code_filepath_string,
-            &all_name_list,
-            &name_list,
-            deleted_name_list,
-            &snippet,
-        );
-
-        return Some(Output {
-            json: alljson,
-            name_list: all_name_list,
-        });
-    }
-
-    return None;
-}
+//// Snippet
 
 // 現存してるスニペット情報を取得する + コードの削除をチェック
 fn get_deleted_list(snippet: &BandledSnippet, name_list: &SnippetNames) -> HashSet<String> {
@@ -551,309 +549,350 @@ fn regex_search(re: &str, text: &String) -> Option<Vec<String>> {
 
 ///// Unit Test
 
-struct MockReader {
-    text: String,
-}
+mod tests {
+    use crate::snippet::*;
 
-impl MockReader {
-    fn new(text: String) -> MockReader {
-        return MockReader { text: text };
+    struct MockReader {
+        text: String,
     }
-}
 
-impl Reader for MockReader {
-    fn lines(&self) -> Vec<String> {
-        return self.text.split('\n').map(|x| String::from(x)).collect();
+    impl MockReader {
+        fn new(text: String) -> MockReader {
+            return MockReader { text: text };
+        }
     }
-    fn all(&mut self) -> String {
-        return self.text.clone();
+
+    impl Reader for MockReader {
+        fn lines(&self) -> Vec<String> {
+            return self.text.split('\n').map(|x| String::from(x)).collect();
+        }
+        fn all(&mut self) -> String {
+            return self.text.clone();
+        }
     }
-}
 
-#[test]
-#[allow(non_snake_case)]
-fn regexSearch_randomSpacing_valid() {
-    let line = String::from("//   name:         \"just_a_mock\"    ");
-    let result = regex_search(NAME_RE, &line);
+    #[test]
+    #[allow(non_snake_case)]
+    fn regexSearch_randomSpacing_valid() {
+        let line = String::from("//   name:         \"just_a_mock\"    ");
+        let result = regex_search(NAME_RE, &line);
 
-    assert_ne!(result, None);
-    let result = result.unwrap();
-    assert_eq!(result.len(), 2);
-    assert_eq!(result[1], String::from("just_a_mock"));
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_oneCode_valid() {
-    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
-    let reader = MockReader::new(text);
-
-    if let Ok(result) = trim_code(reader) {
-        assert_eq!(result.len(), 1);
-        assert_eq!(result.contains_key("just_a_mock"), true);
-        let snippet = &result["just_a_mock"];
-
-        assert_eq!(snippet.prefix, "test_prefix");
-        assert_eq!(snippet.description, "test_desc");
-        assert_eq!(snippet.body, "fn test() {} \n");
-    } else {
-        panic!("failed to trim codes");
+        assert_ne!(result, None);
+        let result = result.unwrap();
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[1], String::from("just_a_mock"));
     }
-}
 
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_someCode_valid() {
-    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
-    let reader = MockReader::new(text);
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_oneCode_valid() {
+        let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+        let reader = MockReader::new(text);
 
-    if let Ok(result) = trim_code(reader) {
-        assert_eq!(result.len(), 1);
-        assert_eq!(result.contains_key("just_a_mock"), true);
-        let snippet = &result["just_a_mock"];
+        if let Ok(result) = trim_code(reader) {
+            assert_eq!(result.len(), 1);
+            assert_eq!(result.contains_key("just_a_mock"), true);
+            let snippet = &result["just_a_mock"];
 
-        assert_eq!(snippet.prefix, "test_prefix");
-        assert_eq!(snippet.description, "test_desc");
-        assert_eq!(
-            snippet.body,
-            "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+            assert_eq!(snippet.prefix, "test_prefix");
+            assert_eq!(snippet.description, "test_desc");
+            assert_eq!(snippet.body, "fn test() {} \n");
+        } else {
+            panic!("failed to trim codes");
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_someCode_valid() {
+        let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let reader = MockReader::new(text);
+
+        if let Ok(result) = trim_code(reader) {
+            assert_eq!(result.len(), 1);
+            assert_eq!(result.contains_key("just_a_mock"), true);
+            let snippet = &result["just_a_mock"];
+
+            assert_eq!(snippet.prefix, "test_prefix");
+            assert_eq!(snippet.description, "test_desc");
+            assert_eq!(
+                snippet.body,
+                "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+            );
+        } else {
+            panic!("failed to trim codes");
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_asteriskComment_valid() {
+        let text = String::from("/*#PORT#*/\n/*name:\"just_a_mock\"*/\n/*prefix:\"test_prefix\"*/\n/*description:\"test_desc\"*/\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n/*#PORT_END#*/");
+        let reader = MockReader::new(text);
+
+        if let Ok(result) = trim_code(reader) {
+            assert_eq!(result.len(), 1);
+            assert_eq!(result.contains_key("just_a_mock"), true);
+            let snippet = &result["just_a_mock"];
+
+            assert_eq!(snippet.prefix, "test_prefix");
+            assert_eq!(snippet.description, "test_desc");
+            assert_eq!(
+                snippet.body,
+                "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+            );
+        } else {
+            panic!("failed to trim codes");
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_sharpComment_valid() {
+        let text = String::from("##PORT##\n#name:\"just_a_mock\"#\n#prefix:\"test_prefix\"#\n#description:\"test_desc\"#\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n##PORT_END##");
+        let reader = MockReader::new(text);
+
+        if let Ok(result) = trim_code(reader) {
+            assert_eq!(result.len(), 1);
+            assert_eq!(result.contains_key("just_a_mock"), true);
+            let snippet = &result["just_a_mock"];
+
+            assert_eq!(snippet.prefix, "test_prefix");
+            assert_eq!(snippet.description, "test_desc");
+            assert_eq!(
+                snippet.body,
+                "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+            );
+        } else {
+            panic!("failed to trim codes");
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_withoutName_invalid() {
+        let text = String::from("//#PORT#\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+        let reader = MockReader::new(text);
+        let result = trim_code(reader);
+        match result {
+            Ok(_) => panic!("failed"),
+            Err(e) => {
+                assert_eq!(e, TrimError::InvalidMeta);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_withoutNameAndPrefix_invalid() {
+        let text =
+            String::from("//#PORT#\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+        let reader = MockReader::new(text);
+        let result = trim_code(reader);
+        match result {
+            Ok(_) => panic!("failed"),
+            Err(e) => {
+                assert_eq!(e, TrimError::InvalidMeta);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_withoutPrefix_invalid() {
+        let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
+        let reader = MockReader::new(text);
+        let result = trim_code(reader);
+        match result {
+            Ok(_) => panic!("failed"),
+            Err(e) => {
+                assert_eq!(e, TrimError::InvalidMeta);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn trimCode_WithoutEndTag_invalid() {
+        let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n");
+        let reader = MockReader::new(text);
+        let result = trim_code(reader);
+        match result {
+            Ok(_) => panic!("failed"),
+            Err(e) => {
+                assert_eq!(e, TrimError::InvalidMeta);
+            }
+        }
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn addCode_fromScratch_valid() {
+        let snippet_text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let snippet_reader = MockReader::new(snippet_text);
+
+        let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
+        let mut namelist_reader = MockReader::new(namelist_text);
+
+        let mock_filename = String::from("MOCK_PATH");
+        let snippet_json = String::from("");
+        let snippet_json_reader = MockReader::new(snippet_json);
+
+        let result = make(
+            snippet_reader,
+            snippet_json_reader,
+            &mut namelist_reader,
+            mock_filename,
         );
-    } else {
-        panic!("failed to trim codes");
+        assert_ne!(result, None);
+
+        let result = result.unwrap();
+        let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
+        assert_eq!(result.json, expected_json);
+
+        assert_eq!(result.name_list.len(), 1);
+        assert_eq!(result.name_list.contains_key("MOCK_PATH"), true);
+        assert_eq!(result.name_list["MOCK_PATH"].len(), 1);
+        assert_eq!(result.name_list["MOCK_PATH"][0], "just_a_mock");
     }
-}
 
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_asteriskComment_valid() {
-    let text = String::from("/*#PORT#*/\n/*name:\"just_a_mock\"*/\n/*prefix:\"test_prefix\"*/\n/*description:\"test_desc\"*/\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n/*#PORT_END#*/");
-    let reader = MockReader::new(text);
+    #[test]
+    #[allow(non_snake_case)]
+    fn updateName_someCode_valid() {
+        let snippet_text = String::from("//#PORT#\n//name:\"modified_name\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let snippet_reader = MockReader::new(snippet_text);
 
-    if let Ok(result) = trim_code(reader) {
-        assert_eq!(result.len(), 1);
-        assert_eq!(result.contains_key("just_a_mock"), true);
-        let snippet = &result["just_a_mock"];
+        let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
+        let mut namelist_reader = MockReader::new(namelist_text);
 
-        assert_eq!(snippet.prefix, "test_prefix");
-        assert_eq!(snippet.description, "test_desc");
-        assert_eq!(
-            snippet.body,
-            "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+        let mock_filename = String::from("MOCK_PATH");
+        let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
+        let snippet_json_reader = MockReader::new(snippet_json);
+
+        let result = make(
+            snippet_reader,
+            snippet_json_reader,
+            &mut namelist_reader,
+            mock_filename,
         );
-    } else {
-        panic!("failed to trim codes");
+        assert_ne!(result, None);
+
+        let result = result.unwrap();
+        let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"modified_name\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
+        assert_eq!(result.json, expected_json);
+
+        assert_eq!(result.name_list.len(), 1);
+        assert_eq!(result.name_list.contains_key("MOCK_PATH"), true);
+        assert_eq!(result.name_list["MOCK_PATH"].len(), 1);
+        assert_eq!(result.name_list["MOCK_PATH"][0], "modified_name");
     }
-}
 
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_sharpComment_valid() {
-    let text = String::from("##PORT##\n#name:\"just_a_mock\"#\n#prefix:\"test_prefix\"#\n#description:\"test_desc\"#\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n##PORT_END##");
-    let reader = MockReader::new(text);
+    #[test]
+    #[allow(non_snake_case)]
+    fn updatePrefix_someCode_valid() {
+        let snippet_text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"modified_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let snippet_reader = MockReader::new(snippet_text);
 
-    if let Ok(result) = trim_code(reader) {
-        assert_eq!(result.len(), 1);
-        assert_eq!(result.contains_key("just_a_mock"), true);
-        let snippet = &result["just_a_mock"];
+        let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
+        let mut namelist_reader = MockReader::new(namelist_text);
 
-        assert_eq!(snippet.prefix, "test_prefix");
-        assert_eq!(snippet.description, "test_desc");
-        assert_eq!(
-            snippet.body,
-            "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+        let mock_filename = String::from("MOCK_PATH");
+        let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
+        let snippet_json_reader = MockReader::new(snippet_json);
+
+        let result = make(
+            snippet_reader,
+            snippet_json_reader,
+            &mut namelist_reader,
+            mock_filename,
         );
-    } else {
-        panic!("failed to trim codes");
+        assert_ne!(result, None);
+
+        let result = result.unwrap();
+        let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"modified_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
+        assert_eq!(result.json, expected_json);
+
+        assert_eq!(result.name_list.len(), 1);
+        assert_eq!(result.name_list.contains_key("MOCK_PATH"), true);
+        assert_eq!(result.name_list["MOCK_PATH"].len(), 1);
+        assert_eq!(result.name_list["MOCK_PATH"][0], "just_a_mock");
     }
-}
 
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_withoutName_invalid() {
-    let text = String::from("//#PORT#\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
-    let reader = MockReader::new(text);
-    let result = trim_code(reader);
-    match result {
-        Ok(_) => panic!("failed"),
-        Err(e) => {
-            assert_eq!(e, TrimError::InvalidMeta);
-        }
+    #[test]
+    #[allow(non_snake_case)]
+    fn addCode_someCode_valid() {
+        let snippet_text1 = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let snippet_text2 = String::from("//#PORT#\n//name:\"mock2\"\n//prefix:\"prefix2\"\n//description:\"desc2\"\nfn second() {\ntest()}\n//#PORT_END#");
+
+        let snippet_reader = MockReader::new(format!("{}\n{}", snippet_text1, snippet_text2));
+
+        let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
+        let mut namelist_reader = MockReader::new(namelist_text);
+
+        let mock_filename = String::from("MOCK_PATH");
+        let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
+        let snippet_json_reader = MockReader::new(snippet_json);
+
+        let result = make(
+            snippet_reader,
+            snippet_json_reader,
+            &mut namelist_reader,
+            mock_filename,
+        );
+        assert_ne!(result, None);
+
+        let result = result.unwrap();
+        let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\"mock2\":{\"prefix\":\"prefix2\",\"body\":\"fn second() {\\ntest()}\\n\",\"description\":\"desc2\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
+        assert_eq!(result.json, expected_json);
+
+        assert_eq!(result.name_list.len(), 1);
+        assert_eq!(result.name_list.contains_key("MOCK_PATH"), true);
+        assert_eq!(result.name_list["MOCK_PATH"].len(), 2);
+        assert_eq!(
+            result.name_list["MOCK_PATH"].contains(&"just_a_mock".to_string()),
+            true
+        );
+        assert_eq!(
+            result.name_list["MOCK_PATH"].contains(&"mock2".to_string()),
+            true
+        );
     }
-}
 
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_withoutNameAndPrefix_invalid() {
-    let text = String::from("//#PORT#\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
-    let reader = MockReader::new(text);
-    let result = trim_code(reader);
-    match result {
-        Ok(_) => panic!("failed"),
-        Err(e) => {
-            assert_eq!(e, TrimError::InvalidMeta);
-        }
+    #[test]
+    #[allow(non_snake_case)]
+    fn deleteCode_someCode_valid() {
+        let snippet_text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let snippet_reader = MockReader::new(snippet_text);
+
+        let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\",\"mock2\"]}");
+        let mut namelist_reader = MockReader::new(namelist_text);
+
+        let mock_filename = String::from("MOCK_PATH");
+        let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\"mock2\":{\"prefix\":\"prefix2\",\"body\":\"fn second() {\\ntest()}\\n\",\"description\":\"desc2\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
+        let snippet_json_reader = MockReader::new(snippet_json);
+
+        let result = make(
+            snippet_reader,
+            snippet_json_reader,
+            &mut namelist_reader,
+            mock_filename,
+        );
+        assert_ne!(result, None);
+
+        let result = result.unwrap();
+        let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
+        assert_eq!(result.json, expected_json);
+
+        assert_eq!(result.name_list.len(), 1);
+        assert_eq!(result.name_list.contains_key("MOCK_PATH"), true);
+        assert_eq!(result.name_list["MOCK_PATH"].len(), 1);
+        assert_eq!(
+            result.name_list["MOCK_PATH"].contains(&"just_a_mock".to_string()),
+            true
+        );
+        assert_eq!(
+            result.name_list["MOCK_PATH"].contains(&"mock2".to_string()),
+            false
+        );
     }
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_withoutPrefix_invalid() {
-    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//description:\"test_desc\"\nfn test() {} \n//#PORT_END#");
-    let reader = MockReader::new(text);
-    let result = trim_code(reader);
-    match result {
-        Ok(_) => panic!("failed"),
-        Err(e) => {
-            assert_eq!(e, TrimError::InvalidMeta);
-        }
-    }
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn trimCode_WithoutEndTag_invalid() {
-    let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {} \n");
-    let reader = MockReader::new(text);
-    let result = trim_code(reader);
-    match result {
-        Ok(_) => panic!("failed"),
-        Err(e) => {
-            assert_eq!(e, TrimError::InvalidMeta);
-        }
-    }
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn addCode_fromScratch_valid() {
-    let snippet_text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
-    let snippet_reader = MockReader::new(snippet_text);
-
-    let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
-    let mut namelist_reader = MockReader::new(namelist_text);
-
-    let mock_filename = String::from("MOCK_PATH");
-    let snippet_json = String::from("");
-    let snippet_json_reader = MockReader::new(snippet_json);
-
-    let result = make(snippet_reader, snippet_json_reader, &mut namelist_reader, mock_filename);
-    assert_ne!(result,None);
-
-    let result = result.unwrap();
-    let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
-    assert_eq!(result.json,expected_json);
-
-    assert_eq!(result.name_list.len(),1);
-    assert_eq!(result.name_list.contains_key("MOCK_PATH"),true);
-    assert_eq!(result.name_list["MOCK_PATH"].len(),1);
-    assert_eq!(result.name_list["MOCK_PATH"][0],"just_a_mock");
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn updateName_someCode_valid() {
-    let snippet_text = String::from("//#PORT#\n//name:\"modified_name\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
-    let snippet_reader = MockReader::new(snippet_text);
-
-    let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
-    let mut namelist_reader = MockReader::new(namelist_text);
-
-    let mock_filename = String::from("MOCK_PATH");
-    let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
-    let snippet_json_reader = MockReader::new(snippet_json);
-
-    let result = make(snippet_reader, snippet_json_reader, &mut namelist_reader, mock_filename);
-    assert_ne!(result,None);
-
-    let result = result.unwrap();
-    let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"modified_name\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
-    assert_eq!(result.json,expected_json);
-
-    assert_eq!(result.name_list.len(),1);
-    assert_eq!(result.name_list.contains_key("MOCK_PATH"),true);
-    assert_eq!(result.name_list["MOCK_PATH"].len(),1);
-    assert_eq!(result.name_list["MOCK_PATH"][0],"modified_name");
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn updatePrefix_someCode_valid() {
-    let snippet_text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"modified_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
-    let snippet_reader = MockReader::new(snippet_text);
-
-    let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
-    let mut namelist_reader = MockReader::new(namelist_text);
-
-    let mock_filename = String::from("MOCK_PATH");
-    let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
-    let snippet_json_reader = MockReader::new(snippet_json);
-
-    let result = make(snippet_reader, snippet_json_reader, &mut namelist_reader, mock_filename);
-    assert_ne!(result,None);
-
-    let result = result.unwrap();
-    let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"modified_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
-    assert_eq!(result.json,expected_json);
-
-    assert_eq!(result.name_list.len(),1);
-    assert_eq!(result.name_list.contains_key("MOCK_PATH"),true);
-    assert_eq!(result.name_list["MOCK_PATH"].len(),1);
-    assert_eq!(result.name_list["MOCK_PATH"][0],"just_a_mock");
-}
-
-
-#[test]
-#[allow(non_snake_case)]
-fn addCode_someCode_valid() {
-    let snippet_text1 = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
-    let snippet_text2 = String::from("//#PORT#\n//name:\"mock2\"\n//prefix:\"prefix2\"\n//description:\"desc2\"\nfn second() {\ntest()}\n//#PORT_END#");
-
-    let snippet_reader = MockReader::new(format!("{}\n{}",snippet_text1,snippet_text2));
-
-    let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\"]}");
-    let mut namelist_reader = MockReader::new(namelist_text);
-
-    let mock_filename = String::from("MOCK_PATH");
-    let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
-    let snippet_json_reader = MockReader::new(snippet_json);
-
-    let result = make(snippet_reader, snippet_json_reader, &mut namelist_reader, mock_filename);
-    assert_ne!(result,None);
-
-    let result = result.unwrap();
-    let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\"mock2\":{\"prefix\":\"prefix2\",\"body\":\"fn second() {\\ntest()}\\n\",\"description\":\"desc2\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
-    assert_eq!(result.json,expected_json);
-
-    assert_eq!(result.name_list.len(),1);
-    assert_eq!(result.name_list.contains_key("MOCK_PATH"),true);
-    assert_eq!(result.name_list["MOCK_PATH"].len(),2);
-    assert_eq!(result.name_list["MOCK_PATH"].contains(&"just_a_mock".to_string()),true);
-    assert_eq!(result.name_list["MOCK_PATH"].contains(&"mock2".to_string()),true);
-}
-
-#[test]
-#[allow(non_snake_case)]
-fn deleteCode_someCode_valid() {
-    let snippet_text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
-    let snippet_reader = MockReader::new(snippet_text);
-
-    let namelist_text = String::from("{\"MOCK_PATH\":[\"just_a_mock\",\"mock2\"]}");
-    let mut namelist_reader = MockReader::new(namelist_text);
-
-    let mock_filename = String::from("MOCK_PATH");
-    let snippet_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\"mock2\":{\"prefix\":\"prefix2\",\"body\":\"fn second() {\\ntest()}\\n\",\"description\":\"desc2\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}");
-    let snippet_json_reader = MockReader::new(snippet_json);
-
-    let result = make(snippet_reader, snippet_json_reader, &mut namelist_reader, mock_filename);
-    assert_ne!(result,None);
-
-    let result = result.unwrap();
-    let expected_json = String::from("{\n////////// [[Generated By PortSnippet]] (DON\'T REMOVE) //////////\n\"just_a_mock\":{\"prefix\":\"test_prefix\",\"body\":\"fn test() {\\nprinln!(\\\"test!\\\")\\n\\nprinln!(\\\"test2!\\\")\\n} \\n\",\"description\":\"test_desc\"},\n////////// [[PortSnippet End]] (DON\'T REMOVE) //////////\n\n\n}\n");
-    assert_eq!(result.json,expected_json);
-
-    assert_eq!(result.name_list.len(),1);
-    assert_eq!(result.name_list.contains_key("MOCK_PATH"),true);
-    assert_eq!(result.name_list["MOCK_PATH"].len(),1);
-    assert_eq!(result.name_list["MOCK_PATH"].contains(&"just_a_mock".to_string()),true);
-    assert_eq!(result.name_list["MOCK_PATH"].contains(&"mock2".to_string()),false);
 }
