@@ -34,19 +34,17 @@ fn main() {
     let config: Config = serde_json::from_str(&contents).expect("cannot perse config.json");
     let paths = [config.dirs.clone(), config.files.clone()].concat();
 
-    let debounce_interval = std::time::Duration::from_millis(DEBOUNCE_INTERVAL);
-    let debouncer = debounce::get_safe_debouncer(debounce_interval);
+    let mut debouncers = debounce::SafeFileDebouncer::new(DEBOUNCE_INTERVAL); // ファイルごとにdebounceする
     let snippets_dir = config.snippets_dir.clone();
 
     // TODO: configも監視しておく
     // 監視する
     let register_result = watch::watch_dir(paths, |code_filepath_string| {
-        // TODO: ファイルごとにdebounceする
+        let debouncer = debouncers.get(code_filepath_string.as_str()); // ファイルに紐付いたdebouncerを取り出す
         let locked = debouncer.lock();
         let code_filepath = std::path::PathBuf::from(code_filepath_string);
 
         if let Ok(_) = locked {
-            // debounceに注意
             let run = locked.unwrap().debounce(|| {
                 make_snippet(snippets_dir.clone().as_str(), &code_filepath);
             });
@@ -56,6 +54,7 @@ fn main() {
             if run {
                 let snippets_dir_string = snippets_dir.clone();
                 thread::spawn(move || {
+                    let debounce_interval = std::time::Duration::from_millis(DEBOUNCE_INTERVAL);
                     thread::sleep(debounce_interval);
                     make_snippet(snippets_dir_string.as_str(), &code_filepath);
                 });

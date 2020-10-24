@@ -1,9 +1,6 @@
 use notify::{RecommendedWatcher, RecursiveMode, Watcher};
 
-pub fn watch_dir(
-    paths: Vec<String>,
-    f: impl Fn(String),
-) -> notify::Result<()> {
+pub fn watch_dir<F: FnMut(String)>(paths: Vec<String>, mut f: F) -> notify::Result<()> {
     let (tx, rx) = std::sync::mpsc::channel();
     let mut watcher: RecommendedWatcher = Watcher::new_immediate(move |res| tx.send(res).unwrap())?;
     for path in paths {
