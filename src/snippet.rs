@@ -318,7 +318,7 @@ fn gen_alljson(
                     let mut found_bracket = false;
                     let mut bracket_index = 0;
 
-                    // already_ported_jsonの末尾の "}," を削除する
+                    // already_ported_jsonの末尾の"}"を探す
                     for c in already_ported_json.as_str().chars().rev() {
                         match c {
                             '}' => {
@@ -365,9 +365,10 @@ fn gen_alljson(
                         if let Ok(code) = serde_json::to_string(&new_snippets) {
                             let mut code = code
                                 .chars()
-                                .skip(1)
-                                .take(code.len() - 2)
-                                .collect::<String>();
+                                .skip(1) // 先頭の "{" を取り除く
+                                .take((code.chars().count() - 1) - 1) // 末尾の "}" を取り除く
+                                .collect::<String>(); 
+
                             code.push(',');
                             let formated_code = add_tag(&code);
                             allcode.push_str(&formated_code); // stringに直して書き込む
