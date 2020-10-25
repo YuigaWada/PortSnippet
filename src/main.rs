@@ -3,6 +3,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
+mod daemon;
 mod debounce;
 mod file;
 mod lang;
@@ -13,6 +14,8 @@ use file::{open_file, FileReader};
 use snippet::KeyList;
 use std::thread;
 
+const DEBOUNCE_INTERVAL: u64 = 10_000; // ms
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     snippets_dir: String,
@@ -20,9 +23,50 @@ pub struct Config {
     files: Vec<String>,
 }
 
-const DEBOUNCE_INTERVAL: u64 = 10_000; // ms
+enum LaunchType {
+    Man,    // 直接人間が起動させた場合
+    Daemon, // cron処理でpcが起動させた場合
+}
+
+#[cfg(debug_assertions)] // デバッグ用
+fn check_type() -> LaunchType {
+    return LaunchType::Daemon;
+}
+
+#[cfg(not(debug_assertions))] // リリース用
+fn check_type() -> LaunchType {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() != 2 {
+        return LaunchType::Man;
+    }
+    if args[1] == "AUTO_LAUNCH" {
+        return LaunchType::Daemon;
+    } else if args[1] == "-m" {
+        return LaunchType::Daemon;
+    }
+
+    return LaunchType::Man;
+}
 
 fn main() {
+    let launch_type = check_type();
+
+    match launch_type {
+        LaunchType::Daemon => {
+            watch();
+        }
+        LaunchType::Man => {
+            // cronの登録処理
+            println!("Registering daemon...\n");
+            daemon::register();
+
+            let messages = daemon::get_complete_messages();
+            println!("{}", messages);
+        }
+    }
+}
+
+fn watch() {
     let mut config_path: std::path::PathBuf;
 
     config_path = std::env::current_exe().expect("cannot get current_exe");
