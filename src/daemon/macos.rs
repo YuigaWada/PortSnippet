@@ -35,22 +35,24 @@ pub fn register() {
     plist = plist.replace(EXE_VARIABLE, &exe_path_string);
 
     let plist_filepath_string = PLIST_FILEPATH.replace("~", &home_dir);
-    let plist_filepath = PathBuf::from(plist_filepath_string);
+    let plist_filepath = PathBuf::from(&plist_filepath_string);
     file::write_file(&plist_filepath, plist);
 
-    // TODO: なぜかこれだけだとうまくいかないので修正する
+    println!("> launchctl load {}",&plist_filepath_string);
+
+    // launchdで起動
     let launchctl = Command::new("launchctl")
         .arg("load")
-        .arg(PLIST_FILEPATH)
+        .arg(plist_filepath_string)
         .output()
-        .expect("cannot run launchctl"); // launchdで起動
+        .expect("cannot run launchctl");
     let result_message = launchctl.stdout;
-    println!("{}\n", std::str::from_utf8(&result_message).unwrap());
+    println!("{}\n...\n", std::str::from_utf8(&result_message).unwrap());
 }
 
 pub fn get_complete_messages() -> String {
     return format!(
-        "{}\n{}\n\nA plist file is saved as \"{}\"!\n\n",
+        "{}\n{}\n\nA plist file is saved as \"{}\"!\n",
         "Daemon setup is now completed!",
         "When you logs in a new launchd, PortSnippet process will be started by launchd.",
         PLIST_FILEPATH
