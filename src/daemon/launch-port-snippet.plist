@@ -6,10 +6,14 @@
     <string>launch-port-snippet</string>
     <key>ProgramArguments</key>
     <array>
-        <string>{{ABSOLUTE_PATH}}</string>
+        <string>{{EXE_PATH}}</string>
         <string>AUTO_LAUNCH</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
+    <key>StandardOutPath</key>
+    <string>{{LOG_FILE_PATH}}</string>
+    <key>StandardErrorPath</key>
+    <string>{{ERROR_LOG_FILE_PATH}}</string>
 </dict>
 </plist>
