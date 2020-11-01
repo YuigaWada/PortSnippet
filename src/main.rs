@@ -66,6 +66,7 @@ fn main() {
     }
 }
 
+// フォルダ・ファイルを監視
 fn watch() {
     let mut config_path: std::path::PathBuf;
 
@@ -124,6 +125,7 @@ fn detect_lang(code_filepath: &std::path::PathBuf) -> Option<String> {
 
 // スニペットを生成
 fn make_snippet(snippets_dir: &str, code_filepath: &std::path::PathBuf) {
+    // 言語の特定 / 対象ファイルの読み込み
     let lang_identifier = detect_lang(code_filepath);
     let snippet_file = open_file(&code_filepath, false, false);
     if lang_identifier.is_none() || snippet_file.is_none() {
@@ -137,24 +139,27 @@ fn make_snippet(snippets_dir: &str, code_filepath: &std::path::PathBuf) {
         .clone()
         .unwrap();
 
+    // namelistの読み込み
     let list_filepath = snippet::get_namelist_filepath(lang_identifier.as_str(), snippets_dir);
     let list_file = open_file(&list_filepath, true, false);
     if list_file.is_none() {
         return;
     }
 
+    // スニペットのjsonファイルを読み込む
     let snippet_json_filename = format!("{}.json", lang_identifier);
     let mut snippet_json_filepath = std::path::PathBuf::from(snippets_dir);
     snippet_json_filepath.push(snippet_json_filename);
     println!("{:?}", snippet_json_filepath);
 
+    // スニペットを生成
     if let Some(snippet_json_file) = open_file(&snippet_json_filepath, true, false) {
         // Readerを用意する
         let snippet_reader = FileReader::new(snippet_file.unwrap());
         let mut list_file_reader = FileReader::new(list_file.unwrap());
         let snippet_json_reader = FileReader::new(snippet_json_file);
 
-        // スニペット生成
+        // make!
         let result = snippet::make(
             snippet_reader,
             snippet_json_reader,
