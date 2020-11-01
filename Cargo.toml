@@ -1,5 +1,5 @@
 [package]
-name = "dynamic_snippet"
+name = "port_snippet"
 version = "0.1.0"
 authors = ["YuigaWada <yuigawada@gmail.com>"]
 edition = "2018"
