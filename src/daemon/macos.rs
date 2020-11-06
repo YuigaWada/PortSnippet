@@ -79,6 +79,20 @@ fn inject_variables(mut plist: String, exe_path: PathBuf) -> String {
     return plist;
 }
 
+// launchdを操作する
+fn operate_launchd(arg: &str) {
+    let home_dir = std::env::var("HOME").unwrap();
+    let plist_filepath_string = PLIST_FILEPATH.replace("~", &home_dir);
+
+    let launchctl = Command::new("launchctl")
+        .arg(arg)
+        .arg(plist_filepath_string)
+        .output()
+        .expect("cannot run launchctl");
+    let result_message = launchctl.stdout;
+    println!("{}\n...\n", std::str::from_utf8(&result_message).unwrap());
+}
+
 // daemonを登録
 pub fn register() {
     let home_dir = std::env::var("HOME").unwrap();
@@ -92,17 +106,10 @@ pub fn register() {
     file::write_file(&plist_filepath, plist);
 
     println!("> launchctl load {}", &plist_filepath_string);
-
-    // launchdで起動
-    let launchctl = Command::new("launchctl")
-        .arg("load")
-        .arg(plist_filepath_string)
-        .output()
-        .expect("cannot run launchctl");
-    let result_message = launchctl.stdout;
-    println!("{}\n...\n", std::str::from_utf8(&result_message).unwrap());
+    run();
 }
 
+// 完了メッセージ
 pub fn get_complete_messages() -> String {
     return format!(
         "{}\n{}\n\nA plist file is saved as \"{}\"!\n",
@@ -110,4 +117,14 @@ pub fn get_complete_messages() -> String {
         "When you logs in a new launchd, PortSnippet process will be started by launchd.",
         PLIST_FILEPATH
     );
+}
+
+// PortSnippetをlaunchd経由で起動する
+pub fn run() {
+    operate_launchd("load");
+}
+
+// PortSnippetを停止する
+pub fn stop() {
+    operate_launchd("stop");
 }
