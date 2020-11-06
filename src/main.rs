@@ -68,7 +68,6 @@ fn check_type() -> LaunchType {
         let restart = params.restart.as_str();
         let help = params.help.as_str();
 
-        print!("{}\n{}", &args[1].as_str(), stop);
         if &args[1] == man {
             return LaunchType::Daemon;
         } else if &args[1] == stop {
@@ -126,10 +125,12 @@ fn main() {
         }
         LaunchType::Stop => {
             daemon::stop();
+            println!("stop");
         }
         LaunchType::Restart => {
             daemon::stop();
             daemon::run();
+            println!("restart!");
         }
         LaunchType::Help => {
             print_help();
