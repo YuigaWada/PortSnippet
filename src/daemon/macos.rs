@@ -6,6 +6,7 @@ const EXE_VARIABLE: &str = "{{EXE_PATH}}";
 const LOG_VARIABLE: &str = "{{LOG_FILE_PATH}}";
 const ERROR_LOG_VARIABLE: &str = "{{ERROR_LOG_FILE_PATH}}";
 
+const PLIST_FILENAME: &str = "launch-port-snippet";
 const PLIST_FILEPATH: &str = "~/Library/LaunchAgents/launch-port-snippet.plist";
 const PLIST_TEMPLATE: &str = r#"
 <?xml version="1.0" encoding="UTF-8"?>
@@ -80,13 +81,10 @@ fn inject_variables(mut plist: String, exe_path: PathBuf) -> String {
 }
 
 // launchdを操作する
-fn operate_launchd(arg: &str) {
-    let home_dir = std::env::var("HOME").unwrap();
-    let plist_filepath_string = PLIST_FILEPATH.replace("~", &home_dir);
-
+fn operate_launchd(mode: &str, arg: &str) {
     let launchctl = Command::new("launchctl")
+        .arg(mode)
         .arg(arg)
-        .arg(plist_filepath_string)
         .output()
         .expect("cannot run launchctl");
     let result_message = launchctl.stdout;
@@ -121,10 +119,13 @@ pub fn get_complete_messages() -> String {
 
 // PortSnippetをlaunchd経由で起動する
 pub fn run() {
-    operate_launchd("load");
+    let home_dir = std::env::var("HOME").unwrap();
+    let plist_filepath_string = PLIST_FILEPATH.replace("~", &home_dir);
+    operate_launchd("unload", plist_filepath_string.as_str());
+    operate_launchd("load", plist_filepath_string.as_str());
 }
 
 // PortSnippetを停止する
 pub fn stop() {
-    operate_launchd("stop");
+    operate_launchd("stop",PLIST_FILENAME);
 }
