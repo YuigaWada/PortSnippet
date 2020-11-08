@@ -3,7 +3,7 @@ extern crate serde_derive;
 extern crate serde;
 extern crate serde_json;
 
-mod argperser; // 引数解析
+mod argparser; // 引数解析
 mod daemon; // デーモン処理
 mod debounce; // 間引き処理
 mod file; // I/O
@@ -11,7 +11,7 @@ mod lang; // 言語特定
 mod snippet; // スニペット処理
 mod watch; // 監視処理
 
-use argperser::LaunchType;
+use argparser::LaunchType;
 use file::{open_file, FileReader};
 use snippet::KeyList;
 use std::thread;
@@ -27,7 +27,7 @@ pub struct Config {
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
-    let launch_type = argperser::detect_type(args);
+    let launch_type = argparser::detect_type(args);
 
     match launch_type {
         LaunchType::Daemon => {
@@ -51,7 +51,7 @@ fn main() {
             println!("restart!");
         }
         LaunchType::Help => {
-            argperser::print_help();
+            argparser::print_help();
         }
     }
 }

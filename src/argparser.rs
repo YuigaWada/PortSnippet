@@ -89,7 +89,7 @@ pub fn print_help() {}
 
 #[cfg(not(debug_assertions))]
 mod tests {
-    use crate::argperser::*;
+    use crate::argparser::*;
 
     // util
 
