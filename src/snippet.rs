@@ -664,7 +664,19 @@ fn test() {}
     #[test]
     #[allow(non_snake_case)]
     fn trimCode_someCode_valid() {
-        let text = String::from("//#PORT#\n//name:\"just_a_mock\"\n//prefix:\"test_prefix\"\n//description:\"test_desc\"\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n//#PORT_END#");
+        let text = r#"
+//#PORT#
+//name:"just_a_mock"
+//prefix:"test_prefix"
+//description:"test_desc"
+fn test() {
+prinln!("test!");
+
+prinln!("test2!");
+}
+//#PORT_END#"#;
+
+        let text = String::from(text);
         let reader = MockReader::new(text);
 
         if let Ok(result) = trim_code(reader) {
@@ -676,7 +688,7 @@ fn test() {}
             assert_eq!(snippet.description, "test_desc");
             assert_eq!(
                 snippet.body,
-                "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+                "fn test() {\nprinln!(\"test!\");\n\nprinln!(\"test2!\");\n}\n"
             );
         } else {
             panic!("failed to trim codes");
@@ -686,7 +698,19 @@ fn test() {}
     #[test]
     #[allow(non_snake_case)]
     fn trimCode_asteriskComment_valid() {
-        let text = String::from("/*#PORT#*/\n/*name:\"just_a_mock\"*/\n/*prefix:\"test_prefix\"*/\n/*description:\"test_desc\"*/\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n/*#PORT_END#*/");
+        let text = r#"
+/* #PORT# */
+/* name:"just_a_mock" */
+/* prefix:"test_prefix" */
+/* description:"test_desc" */
+fn test() {
+prinln!("test!");
+
+prinln!("test2!");
+}
+/* #PORT_END# */"#;
+
+        let text = String::from(text);
         let reader = MockReader::new(text);
 
         if let Ok(result) = trim_code(reader) {
@@ -698,7 +722,7 @@ fn test() {}
             assert_eq!(snippet.description, "test_desc");
             assert_eq!(
                 snippet.body,
-                "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+                "fn test() {\nprinln!(\"test!\");\n\nprinln!(\"test2!\");\n}\n"
             );
         } else {
             panic!("failed to trim codes");
@@ -708,7 +732,19 @@ fn test() {}
     #[test]
     #[allow(non_snake_case)]
     fn trimCode_sharpComment_valid() {
-        let text = String::from("##PORT##\n#name:\"just_a_mock\"#\n#prefix:\"test_prefix\"#\n#description:\"test_desc\"#\nfn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n##PORT_END##");
+        let text = r#"
+# #PORT#
+# name:"just_a_mock"
+# prefix:"test_prefix"
+# description:"test_desc"
+fn test() {
+prinln!("test!");
+
+prinln!("test2!");
+}
+# #PORT_END#"#;
+
+        let text = String::from(text);
         let reader = MockReader::new(text);
 
         if let Ok(result) = trim_code(reader) {
@@ -720,12 +756,13 @@ fn test() {}
             assert_eq!(snippet.description, "test_desc");
             assert_eq!(
                 snippet.body,
-                "fn test() {\nprinln!(\"test!\")\n\nprinln!(\"test2!\")\n} \n"
+                "fn test() {\nprinln!(\"test!\");\n\nprinln!(\"test2!\");\n}\n"
             );
         } else {
             panic!("failed to trim codes");
         }
     }
+
 
     #[test]
     #[allow(non_snake_case)]
