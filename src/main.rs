@@ -31,7 +31,11 @@ fn main() {
 
     match launch_type {
         LaunchType::Daemon => {
-            watch();
+            let config = get_config();
+            let paths = [config.dirs.clone(), config.files.clone()].concat();
+
+            scan_all(&config, &paths); // 起動時にすべての対象ファイルを一度走査する
+            watch(config, paths);
         }
         LaunchType::Man => {
             // cronの登録処理
@@ -56,8 +60,8 @@ fn main() {
     }
 }
 
-// フォルダ・ファイルを監視
-fn watch() {
+// Configを取得
+fn get_config() -> Config {
     let mut config_path: std::path::PathBuf;
 
     config_path = std::env::current_exe().expect("cannot get current_exe");
@@ -67,8 +71,20 @@ fn watch() {
 
     let contents = file::read_file(&config_path);
     let config: Config = serde_json::from_str(&contents).expect("cannot perse config.json");
-    let paths = [config.dirs.clone(), config.files.clone()].concat();
+    return config;
+}
 
+// 監視対象を一斉に走査する
+fn scan_all(config: &Config, paths: &Vec<String>) {
+    let snippets_dir = config.snippets_dir.clone();
+    for path in paths {
+        let path = std::path::PathBuf::from(path);
+        make_snippet(snippets_dir.clone().as_str(), &path);
+    }
+}
+
+// フォルダ・ファイルを監視
+fn watch(config: Config, paths: Vec<String>) {
     let mut debouncers = debounce::SafeFileDebouncer::new(DEBOUNCE_INTERVAL); // ファイルごとにdebounceする
     let snippets_dir = config.snippets_dir.clone();
 
