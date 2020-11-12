@@ -576,6 +576,7 @@ mod tests {
 
     //////// util ////////
 
+    // MockReaderを束ねたもの
     struct BandledReader {
         snippet: MockReader,
         namelist: MockReader,
@@ -606,19 +607,25 @@ mod tests {
     fn remove_tags(text: String) -> String {
         let reader = MockReader::new(text);
         let lines = reader.lines();
-        let mut res = String::from("{");
-        for line in lines.iter().skip(2) {
-            if line.contains("[[PortSnippet End]]") {
-                break;
+        let mut res = String::new();
+        for line in lines.iter() {
+            if line.contains(GEN_START_TAG) || line.contains(GEN_END_TAG) {
+                continue;
             }
             res += line;
         }
 
-        return res
-            .chars()
-            .take(res.chars().count() - 1)
-            .collect::<String>()
-            + "}";
+        // 末尾が ",}"の場合serde_jsonでパースできないので修正しておく
+        let tail = res.chars().rev().take(2).collect::<String>();
+        if tail == "}," {
+            res = res
+                .chars()
+                .take(res.chars().count() - 2)
+                .collect::<String>()
+                + "}";
+        }
+
+        return res;
     }
 
     //////// test ////////
