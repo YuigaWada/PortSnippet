@@ -49,13 +49,13 @@ template <class S, S (*op)(S, S), S (*e)()> struct segtree {
     void update(int k) { d[k] = op(d[2 * k], d[2 * k + 1]); }
 };
 
-// #PORT_END
+// #PORT_END#
 
 ```
 
 ## Config
 
-You need put a config file on the same file as PortSnippet.
+You need put a config file on the same directory as PortSnippet.
 
 ```json 
 {
