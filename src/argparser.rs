@@ -107,7 +107,7 @@ mod tests {
 
     #[test]
     fn short_daemon_invalid() {
-        let launch_type = detect_type(gen_mock_args("A"));
+        let launch_type = detect_type(gen_mock_args("-A"));
         assert_ne!(launch_type, LaunchType::Daemon); // not!
     }
 
