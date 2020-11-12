@@ -549,6 +549,7 @@ fn regex_search(re: &str, text: &String) -> Option<Vec<String>> {
 
 ///// Unit Test
 
+#[cfg(test)]
 mod tests {
     use crate::snippet::*;
 

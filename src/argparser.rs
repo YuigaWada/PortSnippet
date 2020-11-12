@@ -87,6 +87,7 @@ fn get_params(short: bool) -> Params {
 // ヘルプを表示
 pub fn print_help() {}
 
+#[cfg(test)]
 #[cfg(not(debug_assertions))]
 mod tests {
     use crate::argparser::*;
