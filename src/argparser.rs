@@ -84,8 +84,62 @@ fn get_params(short: bool) -> Params {
     };
 }
 
+const HELP_MESSAGE: &str = r#"
+/$$$$$$$                       /$$      /$$$$$$            /$$                                 /$$    
+| $$__  $$                     | $$     /$$__  $$          |__/                                | $$    
+| $$  \ $$ /$$$$$$   /$$$$$$  /$$$$$$  | $$  \__/ /$$$$$$$  /$$  /$$$$$$   /$$$$$$   /$$$$$$  /$$$$$$  
+| $$$$$$$//$$__  $$ /$$__  $$|_  $$_/  |  $$$$$$ | $$__  $$| $$ /$$__  $$ /$$__  $$ /$$__  $$|_  $$_/  
+| $$____/| $$  \ $$| $$  \__/  | $$     \____  $$| $$  \ $$| $$| $$  \ $$| $$  \ $$| $$$$$$$$  | $$    
+| $$     | $$  | $$| $$        | $$ /$$ /$$  \ $$| $$  | $$| $$| $$  | $$| $$  | $$| $$_____/  | $$ /$$
+| $$     |  $$$$$$/| $$        |  $$$$/|  $$$$$$/| $$  | $$| $$| $$$$$$$/| $$$$$$$/|  $$$$$$$  |  $$$$/
+|__/      \______/ |__/         \___/   \______/ |__/  |__/|__/| $$____/ | $$____/  \_______/   \___/  
+                                                               | $$      | $$                          
+                                                               | $$      | $$                          
+                                                               |__/      |__/                          
+
+> Dynamic Snippet for VSCode. 
+> https://github.com/YuigaWada/PortSnippet
+> Dev: @YuigaWada
+
+usage: ./port_snippet [OPTION] ...
+
+OPTION: 
+    -m, man: run portsnippet as a foreground process.
+    -s, stop: stop a background portsnippet's processs.
+    -r, restart: restart a background portsnippet's processs.
+    -h, help: print this help message.s
+
+
+config: You need put a config file on the same dir as the exe binary of portsnippet.
+
+    {
+        "snippets_dir": "",
+        "dirs": [
+            ""
+        ],
+        "files": [
+            ""
+        ]
+    }
+
+meta tags: Put meta tags between your code that you want to save as a snippet!
+
+    // #PORT#
+    // name: ""
+    // prefix: ""
+    // description: ""
+    // #PORT_END 
+
+    ... Some Codes ...
+
+    // #PORT_END 
+
+"#;
+
 // ヘルプを表示
-pub fn print_help() {}
+pub fn print_help() {
+    println!("{}",HELP_MESSAGE);
+}
 
 #[cfg(test)]
 #[cfg(not(debug_assertions))]
