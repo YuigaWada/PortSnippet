@@ -75,7 +75,6 @@ You need put a config file on the same directory as PortSnippet.
 - Mac `$HOME/Library/Application Support/Code/User/snippets`
 <!-- - Linux $HOME/.config/Code/User/snippets/(language).json -->
 
-**※ Write an ABSOLUTE path！ ※**
 
 <br>
 
@@ -85,19 +84,25 @@ When you change the files that PortSnippet's monitoring, it detects any changes 
 
 After modifing the config file, make sure to restart PortSnippet! (check [#Arguments](#Arguments))
 
-<br>
+**※ Write an ABSOLUTE path！ ※**
 
 ## Arguments
 
+```
+
+usage: ./port_snippet [OPTION] ...
+
+OPTION:
+    -m, man: run portsnippet as a foreground process.
+    -s, stop: stop a background portsnippet's processs.
+    -r, restart: restart a background portsnippet's processs.
+    -h, help: print this help message.s
 
 
-
-
+```
 
 
 ## How it works
-
-
 
 
 
