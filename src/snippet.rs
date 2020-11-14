@@ -362,7 +362,7 @@ fn gen_alljson(
                             new_snippets.insert(name.clone(), value.clone());
                         }
 
-                        if let Ok(code) = serde_json::to_string(&new_snippets) {
+                        if let Ok(code) = serde_json::to_string_pretty(&new_snippets) {
                             let mut code = code
                                 .chars()
                                 .skip(1) // 先頭の "{" を取り除く
