@@ -107,7 +107,7 @@ OPTION:
     -m, man: run portsnippet as a foreground process.
     -s, stop: stop a background portsnippet's processs.
     -r, restart: restart a background portsnippet's processs.
-    -h, help: print this help message.s
+    -h, help: print this help messages.
 
 
 config: You need put a config file on the same dir as the exe binary of portsnippet.
