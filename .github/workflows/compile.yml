@@ -23,9 +23,7 @@ jobs:
           use-cross: true
           command: build
           args: --release --target=${{ matrix.target }}
-      - run: |
-          zip --junk-paths binary-${{ matrix.target }} target/${{ matrix.target }}/release/binary{,.exe}
-      - uses: actions/upload-artifact@v1
+      - uses: actions/upload-artifact@v1 
         with:
-          name: build-${{ matrix.target }}
-          path: binary-${{ matrix.target }}.zip
+          name: port_snippet_for_${{ matrix.target }}
+          path: target/release/port_snippet.exe
