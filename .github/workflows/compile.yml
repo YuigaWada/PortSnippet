@@ -1,16 +1,16 @@
 on: [push, pull_request]
 
-name: Cross-compile
+name: Compile for Windows
 
 jobs:
   build:
     name: Build
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         target:
-          - i686-pc-windows-gnu
-          - i686-apple-darwin
+          - x86_64-pc-windows-gnu
+            
+    runs-on: $${{ matrix.target }}
     steps:
       - uses: actions/checkout@v2
       - uses: actions-rs/toolchain@v1
@@ -23,3 +23,9 @@ jobs:
           use-cross: true
           command: build
           args: --release --target=${{ matrix.target }}
+      - run: |
+          zip --junk-paths binary-${{ matrix.target }} target/${{ matrix.target }}/release/binary{,.exe}
+      - uses: actions/upload-artifact@v1
+        with:
+          name: build-${{ matrix.target }}
+          path: binary-${{ matrix.target }}.zip
