@@ -1,7 +1,11 @@
 #[cfg(target_os = "macos")]
 pub mod macos;
+
 #[cfg(target_os = "macos")]
-pub use self::macos::register;
-pub use self::macos::run;
-pub use self::macos::stop;
-pub use self::macos::get_complete_messages;
+pub use self::macos::*;
+
+#[cfg(target_os = "windows")]
+pub mod windows;
+
+#[cfg(target_os = "windows")]
+pub use self::windows::*;
