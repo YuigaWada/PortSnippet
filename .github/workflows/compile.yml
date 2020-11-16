@@ -26,4 +26,4 @@ jobs:
       - uses: actions/upload-artifact@v1 
         with:
           name: port_snippet_for_${{ matrix.target }}
-          path: target/release/port_snippet.exe
+          path: target/${{ matrix.target }}/release/port_snippet.exe
