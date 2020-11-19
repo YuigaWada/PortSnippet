@@ -36,8 +36,7 @@ fn inject_exe_variable(args: Vec<&str>, value: String) -> Vec<String> {
 fn start_process() {
     let mut command = Command::new("cmd");
     take_args(&mut command, START_ARGS.to_vec());
-    let res = command.output();
-    println!("start result: {:?}", res);
+    let _ = command.output();
 }
 
 // Serviceとして登録する
