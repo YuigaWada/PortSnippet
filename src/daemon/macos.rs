@@ -92,7 +92,7 @@ fn operate_launchd(mode: &str, arg: &str) {
 }
 
 // daemonを登録
-pub fn register() {
+pub fn register(need_run: bool) {
     let home_dir = std::env::var("HOME").unwrap();
     let exe_path = std::env::current_exe().expect("cannot get current_exe");
 
@@ -104,7 +104,9 @@ pub fn register() {
     file::write_file(&plist_filepath, plist);
 
     println!("> launchctl load {}", &plist_filepath_string);
-    run();
+    if need_run {
+        run();
+    }
 }
 
 // 完了メッセージ
@@ -127,5 +129,5 @@ pub fn run() {
 
 // PortSnippetを停止する
 pub fn stop() {
-    operate_launchd("stop",PLIST_FILENAME);
+    operate_launchd("stop", PLIST_FILENAME);
 }

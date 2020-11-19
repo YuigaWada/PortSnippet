@@ -40,7 +40,7 @@ fn main() {
         LaunchType::Man => {
             // cronの登録処理
             println!("Registering daemon...\n");
-            daemon::register();
+            daemon::register(true);
 
             let messages = daemon::get_complete_messages();
             println!("{}", messages);
