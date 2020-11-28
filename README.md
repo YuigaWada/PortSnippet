@@ -3,14 +3,25 @@
 
 ## Port Snippet 📔
 
-PortSnippet monitors source codes and automatically generates snippets!
-
-Available only in VS Code✌
+PortSnippet monitors source codes and automatically generates snippets! Only for VS Code✌
 
 ## Demo 📸
 
 <img src = "image/demo.gif">
 
+## VSCode System
+
+VSCode saves your snippets in language-specific json files, so the snippet system in VSCode has the following drawbacks.
+
+- Difficult to edit snippets
+- Low readability
+- Not cool to save snippets in a single file
+
+PortSnippet enables us to manage snippets by multiple files and automatically generates snippets!
+
+## Installation
+
+... 
 
 ## How to use 💻
 
@@ -106,8 +117,6 @@ In Visual Studio Code, every language has a unique specific language identifier.
             "identifier": "c",
             "extension": "c"
         },
-
-        ...
 
         {
             "name": "C++",
