@@ -84,12 +84,43 @@ When you change the files that PortSnippet's monitoring, it detects any changes 
 
 After modifing the config file, make sure to restart PortSnippet! (check [#Arguments](#Arguments))
 
-**※ Write an ABSOLUTE path！ ※**
+**※ Use an ABSOLUTE path！ ※**
+
+
+## lang.json
+
+`lang.json` is a JSON file for list of file extensions. You need put this file on the same directory as PortSnippet.
+
+In Visual Studio Code, every language has a unique specific language identifier. When adding new languange, you need write  `identifier` for the language. Check [this](https://code.visualstudio.com/docs/languages/identifiers).
+
+```json 
+{
+    "lang": [
+        {
+            "name": "Rust",
+            "identifier": "rust",
+            "extension": "rs"
+        },
+        {
+            "name": "C",
+            "identifier": "c",
+            "extension": "c"
+        },
+
+        ...
+
+        {
+            "name": "C++",
+            "identifier": "cpp",
+            "extension": "cpp"
+        },
+    ]  
+}
+```
 
 ## Arguments
 
 ```
-
 usage: ./port_snippet [OPTION] ...
 
 OPTION:
@@ -97,13 +128,12 @@ OPTION:
     -s, stop: stop a background portsnippet's processs.
     -r, restart: restart a background portsnippet's processs.
     -h, help: print this help messages.
-
 ```
 
 
 ## How it works
 
-
+<img src="image/work.png">
 
 
 ## Contribute
