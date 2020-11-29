@@ -1,11 +1,11 @@
 <img src="image/logo.png">
 
 
-## Port Snippet 📔
+## Port Snippet
 
 PortSnippet monitors source codes and automatically generates snippets! Only for VS Code✌
 
-## Demo 📸
+## Demo
 
 <img src = "image/demo.gif">
 
@@ -21,9 +21,12 @@ PortSnippet enables us to manage snippets by multiple files and automatically ge
 
 ## Installation
 
-... 
+[Download](https://github.com/YuigaWada/PortSnippet/releases) and run `port_snippet`!
 
-## How to use 💻
+Once you run `port_snippet`, `port_snippet` regiters itself as a daemon (or a Windows Service) and it will automatically start each time your computer is restarted.
+
+
+## How to use
 
 Put meta tags between your code that you want to save as a snippet!
 
