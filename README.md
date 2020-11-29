@@ -1,5 +1,10 @@
 <img src="image/logo.png">
 
+![rust](https://img.shields.io/badge/rust-100%25-D5A789.svg)
+![MIT License](https://img.shields.io/badge/license-MIT-green.svg)
+![MacOS](https://img.shields.io/badge/-MacOS-555555.svg?logo=apple&style=popout)
+![Windows](https://img.shields.io/badge/-Windows-0078D6.svg?logo=windows&style=flat)
+
 
 ## Port Snippet
 
