@@ -5,7 +5,7 @@
 ![MacOS](https://img.shields.io/badge/-MacOS-555555.svg?logo=apple&style=popout)
 ![Windows](https://img.shields.io/badge/-Windows-0078D6.svg?logo=windows&style=flat)
 
-[日本語](https://github.com/YuigaWada/PortSnippet/README.jp.md) | English
+[日本語](https://github.com/YuigaWada/PortSnippet/blob/master/README.jp.md) | English
 
 ## Port Snippet
 
