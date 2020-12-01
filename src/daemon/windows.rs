@@ -6,7 +6,7 @@ const REGISTER_ARGS: &'static [&'static str] = &[
     "create",
     "PortSnippet",
     "binPath=",
-    r#"cmd /c {{EXE_PATH}} AUTO_LAUNCH""#,
+    r#"cmd /c "{{EXE_PATH}}" AUTO_LAUNCH"#,
     "DisplayName=",
     r#""PortSnippet""#,
     "start=",
