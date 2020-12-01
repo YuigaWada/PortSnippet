@@ -62,9 +62,8 @@ pub fn register(need_run: bool) {
     let result = command.output();
     match result {
         Ok(result) => {
-            let message =
-                String::from_utf8(result.stdout).expect("cannot convert Vec<u8> to String.");
-            println!("Success: {}\n", message);
+            let message = get_complete_messages();
+            println!("{}", message);
         }
         Err(e) => {
             panic!("Error: {}", e);
@@ -83,9 +82,9 @@ fn unregister() {
     let result = command.output();
     match result {
         Ok(result) => {
-            let message =
-                String::from_utf8(result.stdout).expect("cannot convert Vec<u8> to String.");
-            println!("Success: {}\n", message);
+            // let message =
+            //     String::from_utf8(result.stdout).expect("cannot convert Vec<u8> to String.");
+            // println!("Success: {}\n", message);
         }
         Err(e) => {
             panic!("Error: {}", e);
