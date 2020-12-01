@@ -26,7 +26,10 @@ PortSnippet enables us to manage snippets by multiple files and automatically ge
 
 ## Installation
 
-[Download](https://github.com/YuigaWada/PortSnippet/releases) and run `port_snippet`!
+1. [Download](https://github.com/YuigaWada/PortSnippet/releases).
+2. Copy [these files](https://github.com/YuigaWada/PortSnippet/tree/master/files) in the same directory as PortSnippet.
+3. Edit the `config.json`. (Check [#Config](#Config))
+4. Run `port_snippet`! (If you use Windows, you need run as administrator)
 
 Once you run `port_snippet`, `port_snippet` regiters itself as a daemon (or a Windows Service) and it will automatically start each time your computer is restarted.
 
@@ -74,7 +77,7 @@ template <class S, S (*op)(S, S), S (*e)()> struct segtree {
 
 ## Config
 
-You need put a config file on the same directory as PortSnippet.
+You need put a config file in the same directory as PortSnippet.
 
 ```json 
 {
@@ -108,7 +111,7 @@ After modifing the config file, make sure to restart PortSnippet! (check [#Argum
 
 ## lang.json
 
-`lang.json` is a JSON file for list of file extensions. You need put this file on the same directory as PortSnippet.
+`lang.json` is a JSON file for list of file extensions. You need put this file in the same directory as PortSnippet.
 
 In Visual Studio Code, every language has a unique specific language identifier. When adding new languange, you need write  `identifier` for the language. Check [this](https://code.visualstudio.com/docs/languages/identifiers).
 
