@@ -56,6 +56,8 @@ fn get_log_path(exe_path: &PathBuf) -> LogPaths {
 // plistに変数を注入する
 fn inject_variables(mut plist: String, exe_path: PathBuf) -> String {
     let log_paths = get_log_path(&exe_path);
+    
+    let exe_path = std::fs::canonicalize(exe_path).expect("cannot get current_exe");
     let exe_path_string = exe_path
         .into_os_string()
         .into_string()
